@@ -1,6 +1,16 @@
-https://www.figma.com/proto/22R6zR5SqMVrMRVeecA30l/Metrotech-Interportal?node-id=28-1114&p=f&t=DwAQLVPuCnWdxwbv-1&scaling=scale-down&content-scaling=fixed&page-id=1%3A2&starting-point-node-id=28%3A1114
+# Metrotech Interportal: DCIM Rack Builder
 
-![MTRI_Figma_Preview 3](https://github.com/user-attachments/assets/7438690c-7c6b-452b-91e7-28a14bbe2e3b)
-![MTRI_Figma_Preview 1](https://github.com/user-attachments/assets/027ce556-90a3-492f-891b-0ee4f732050d)
-![MTRI_Figma_Preview 2](https://github.com/user-attachments/assets/386f8058-02c3-4216-b6b7-be42bfc9145e)
+**Goal**: A specialized Data Center Infrastructure Management (DCIM) tool designed to visually map, plan, and manage server room layouts from the high-level Data Center view down to individual Rack Units (U).
 
+## 🚀 Core Features
+* **Visual Rack Management**: Create and edit server racks with configurable heights (42U, 48U, 52U).
+* **Inventory Mapping**: Drag-and-drop devices (Servers, Switches, UPS) into specific Units.
+* **Hierarchical Navigation**: Drill down through a structured path: `User` ➔ `Data Center` ➔ `Floor` ➔ `Rack`.
+* **Portable Data**: Uses a local `db.json` for easy version control and portability.
+
+## 🛠 Tech Stack
+* **Framework**: React 19 + TanStack Start (Router + Query + SSR)
+* **Styling**: Tailwind CSS 4.0
+* **Tooling**: Biome (Linting & Formatting)
+* **Icons**: Lucide React
+* **Database**: Flat-file JSON via Node.js Server Functions
