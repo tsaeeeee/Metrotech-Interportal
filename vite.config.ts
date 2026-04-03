@@ -5,19 +5,21 @@ import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
-const config = defineConfig({
-    plugins: [
-        devtools(),
-        tsconfigPaths({ projects: ['./tsconfig.json'] }),
-        tailwindcss(),
-        tanstackStart(),
-        viteReact(),
+export default defineConfig({
+  plugins: [
+    devtools(),
+    tsconfigPaths({ projects: ['./tsconfig.json'] }),
+    tailwindcss(),
+    tanstackStart(),
+    viteReact(),
+  ],
+  server: {
+    host: true, // 🔥 INI PENTING BANGET
+    allowedHosts: [
+      'unblushing-ewa-superseraphical.ngrok-free.dev'
     ],
-    server: {
-        watch: {
-            ignored: ['**/data/**'],
-        },
+    watch: {
+      ignored: ['*/data/*'],
     },
+  },
 });
-
-export default config;
