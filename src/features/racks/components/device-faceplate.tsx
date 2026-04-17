@@ -79,7 +79,7 @@ function NetworkFaceplate({ uHeight }: { uHeight: number }) {
                     {/* Render a block of ports */}
                     {Array.from({ length: 12 }).map((_, j) => (
                         <rect
-                            key={`port-${j}`}
+                            key={`port-${x}-${j}`}
                             x={(j % 6) * 8}
                             y={Math.floor(j / 6) * 6}
                             width="6"
@@ -184,7 +184,7 @@ function PDUFaceplate({ uHeight }: { uHeight: number }) {
             {/* Outlets */}
             {Array.from({ length: 12 }).map((_, i) => (
                 <rect
-                    key={`outlet-${i}-${Math.random()}`}
+                    key={`outlet-${i}`}
                     x={25 + i * 22}
                     y={pxHeight / 2 - 4}
                     width="14"

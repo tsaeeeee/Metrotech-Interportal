@@ -18,6 +18,7 @@ import {
     connectPorts,
     disconnectPorts,
     upsertInventoryAsset,
+    deleteInventoryAsset,
 } from '#/features/database/database-service';
 import { cn } from '#/lib/utils';
 import { PortFaceplate } from '#/features/connectivity/components/port-faceplate';
@@ -142,8 +143,15 @@ export function AssetForm({
 
     const handleDelete = async () => {
         if (!device?.id) return;
-        if (confirm('Are you sure you want to delete this asset?')) {
-            const result = await deleteDevice({ data: device.id });
+        const msg = mode === 'inventory' 
+            ? 'Are you sure you want to delete this master blueprint? This will not affect existing rack instances.'
+            : 'Are you sure you want to delete this asset from the rack?';
+
+        if (confirm(msg)) {
+            const result = mode === 'inventory'
+                ? await deleteInventoryAsset({ data: device.id })
+                : await deleteDevice({ data: device.id });
+
             if (result.success) {
                 onDelete(device.id);
             }
@@ -463,30 +471,31 @@ export function AssetForm({
                         </div>
                     </div>
 
-                    <div className="flex gap-4 pt-6 border-t border-white/10">
+                    <div className="flex flex-col gap-3 pt-6 border-t border-zinc-200 dark:border-white/10">
                         <button
                             type="submit"
                             className={cn(
-                                "flex-1 bg-(--sea-teal) hover:bg-(--sea-aqua) text-(--sea-ink) font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                                "w-full bg-(--sea-teal) hover:bg-(--sea-aqua) text-(--sea-ink) font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
                             )}
                         >
                             <Save size={18} />
                             {device
                                 ? mode === 'inventory'
-                                    ? 'Update Blueprint'
+                                    ? 'Update Master'
                                     : 'Update Asset'
                                 : mode === 'inventory'
                                   ? 'Add to Library'
                                   : 'Add Asset'}
                         </button>
-                        {device && mode === 'rack' && (
+                        {device && (
                             <button
                                 type="button"
                                 onClick={handleDelete}
-                                className="bg-red-500/20 hover:bg-red-500/40 text-red-500 p-2 rounded-lg transition-colors border border-red-500/20 cursor-pointer"
+                                className="w-full bg-red-500/5 hover:bg-red-500/10 text-red-500/80 hover:text-red-500 font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all border border-red-500/10 hover:border-red-500/20 active:scale-[0.98] cursor-pointer"
                                 title="Delete Asset"
                             >
-                                <Trash2 size={20} />
+                                <Trash2 size={16} />
+                                <span className="text-xs uppercase tracking-wider">Delete Asset</span>
                             </button>
                         )}
                     </div>

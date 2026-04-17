@@ -19,7 +19,7 @@ export default defineConfig({
       'unblushing-ewa-superseraphical.ngrok-free.dev'
     ],
     watch: {
-      ignored: ['*/data/*'],
+      ignored: ['**/data/**'],
     },
   },
 });

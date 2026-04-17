@@ -301,6 +301,7 @@ export function InfrastructureNavigator({
                                                         <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-300">
                                                             <div className="overflow-hidden">
                                                                 <button
+                                                                    type="button"
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         if (
