@@ -60,12 +60,12 @@ const BASE_PRESETS = [
         ports: 4,
     },
     {
-        name: 'PDU Unit',
-        type: 'pdu',
-        uHeight: 1,
-        icon: Cpu,
-        color: '#f1c40f',
-        ports: 6,
+        name: 'Storage Array',
+        type: 'storage',
+        uHeight: 4,
+        icon: Database,
+        color: '#9b59b6',
+        ports: 4,
     },
 ];
 
@@ -199,7 +199,7 @@ export function AssetForm({
             {/* Template Selector Bar (Visual Preset Bar) */}
             {!device && (
                 <div className="space-y-3">
-                    <label className="text-[10px] font-bold text-white/30 uppercase tracking-widest pl-1 leading-none">
+                    <label className="text-[10px] font-bold text-(--sea-ink-soft) opacity-60 uppercase tracking-widest pl-1 leading-none">
                         Starting Point
                     </label>
                     <div className="grid grid-cols-4 gap-2">
@@ -209,7 +209,7 @@ export function AssetForm({
                                 type="button"
                                 onClick={() => applyPreset(preset)}
                                 className={cn(
-                                    'flex flex-col items-center justify-center p-3 rounded-xl border border-white/5 bg-white/5 transition-all hover:bg-white/10 hover:border-white/20 active:scale-95 group',
+                                    'flex flex-col items-center justify-center p-3 rounded-xl border border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5 transition-all hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/10 dark:hover:border-white/20 active:scale-95 group',
                                     formData.type === preset.type &&
                                         'bg-(--sea-teal)/10 border-(--sea-teal)/40 text-(--sea-teal)',
                                 )}
@@ -224,7 +224,7 @@ export function AssetForm({
                                 />
                                 <span
                                     className={cn(
-                                        'text-[9px] font-bold uppercase tracking-tight text-white/40 group-hover:text-white transition-colors',
+                                        'text-[9px] font-bold uppercase tracking-tight text-(--sea-ink-soft) opacity-60 group-hover:text-(--sea-ink) group-hover:opacity-100 transition-all',
                                         formData.type === preset.type &&
                                             'text-(--sea-teal)',
                                     )}
@@ -238,36 +238,36 @@ export function AssetForm({
             )}
 
             {/* Tabs */}
-            <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+                <div className="flex bg-black/5 dark:bg-black/40 p-1 rounded-xl border border-black/10 dark:border-white/5">
                 <button
                     type="button"
                     onClick={() => setActiveTab('info')}
                     className={cn(
-                        'flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium transition-all',
+                        'flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-bold transition-all',
                         activeTab === 'info'
-                            ? 'bg-white/10 text-white'
-                            : 'text-white/40 hover:text-white/60',
+                            ? 'bg-white shadow-sm dark:bg-white/10 text-(--sea-ink)'
+                            : 'text-(--sea-ink-soft) opacity-60 hover:opacity-100',
                     )}
                 >
                     <Info size={16} />{' '}
                     {mode === 'inventory' ? 'Design' : 'Asset Info'}
                 </button>
-                <button
-                    type="button"
-                    onClick={() => setActiveTab('connections')}
-                    disabled={mode === 'inventory' || !device}
-                    className={cn(
-                        'flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium transition-all',
-                        activeTab === 'connections'
-                            ? 'bg-white/10 text-white'
-                            : 'text-white/40 hover:text-white/60',
-                        (mode === 'inventory' || !device) &&
-                            'opacity-20 cursor-not-allowed',
-                    )}
-                >
-                    <Cable size={16} />{' '}
-                    {mode === 'inventory' ? 'Default Ports' : 'Connectivity'}
-                </button>
+                {mode !== 'inventory' && (
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('connections')}
+                        disabled={!device}
+                        className={cn(
+                            'flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-bold transition-all',
+                            activeTab === 'connections'
+                                ? 'bg-white shadow-sm dark:bg-white/10 text-(--sea-ink)'
+                                : 'text-(--sea-ink-soft) opacity-60 hover:opacity-100',
+                            !device && 'opacity-20 cursor-not-allowed',
+                        )}
+                    >
+                        <Cable size={16} /> Connectivity
+                    </button>
+                )}
             </div>
 
             {activeTab === 'info' ? (
@@ -277,7 +277,7 @@ export function AssetForm({
                         <div>
                             <label
                                 htmlFor="name"
-                                className="block text-sm font-medium text-white/60 mb-1"
+                                className="block text-sm font-bold text-(--sea-ink-soft) opacity-60 mb-1"
                             >
                                 {mode === 'inventory'
                                     ? 'Blueprint Name'
@@ -290,7 +290,7 @@ export function AssetForm({
                                 name="name"
                                 value={formData.name}
                                 onChange={handleChange}
-                                className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-(--sea-teal)"
+                                className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
                                 placeholder={
                                     mode === 'inventory'
                                         ? 'e.g. Standard Web Server Tier A'
@@ -303,7 +303,7 @@ export function AssetForm({
                             <div>
                                 <label
                                     htmlFor="type"
-                                    className="block text-sm font-medium text-white/60 mb-1"
+                                    className="block text-sm font-bold text-(--sea-ink-soft) opacity-60 mb-1"
                                 >
                                     Asset Class
                                 </label>
@@ -312,13 +312,12 @@ export function AssetForm({
                                     name="type"
                                     value={formData.type}
                                     onChange={handleChange}
-                                    className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-(--sea-teal)"
+                                    className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
                                 >
                                     <option value="server">Server</option>
                                     <option value="network">
                                         Network/Switch
                                     </option>
-                                    <option value="pdu">Power (PDU)</option>
                                     <option value="storage">
                                         Storage Array
                                     </option>
@@ -327,7 +326,7 @@ export function AssetForm({
                             <div>
                                 <label
                                     htmlFor="uHeight"
-                                    className="block text-sm font-medium text-white/60 mb-1"
+                                    className="block text-sm font-bold text-(--sea-ink-soft) opacity-60 mb-1"
                                 >
                                     Height (U Count)
                                 </label>
@@ -340,21 +339,21 @@ export function AssetForm({
                                     name="uHeight"
                                     value={formData.uHeight}
                                     onChange={handleChange}
-                                    className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-(--sea-teal)"
+                                    className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
                                 />
                             </div>
                         </div>
 
                         {mode === 'rack' && (
-                            <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-4">
-                                <h4 className="text-[10px] font-bold text-white/20 uppercase tracking-widest flex items-center gap-2">
+                            <div className="p-4 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 space-y-4">
+                                <h4 className="text-[10px] font-bold text-(--sea-ink-soft) opacity-60 uppercase tracking-widest flex items-center gap-2">
                                     <Layout size={12} /> Deployment Position
                                 </h4>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label
                                             htmlFor="uPosition"
-                                            className="block text-[10px] text-white/40 mb-1"
+                                            className="block text-[10px] text-(--sea-ink-soft) opacity-60 mb-1"
                                         >
                                             Starting U
                                         </label>
@@ -367,13 +366,13 @@ export function AssetForm({
                                             name="uPosition"
                                             value={formData.uPosition}
                                             onChange={handleChange}
-                                            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-(--sea-teal)"
+                                            className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
                                         />
                                     </div>
                                     <div>
                                         <label
                                             htmlFor="status"
-                                            className="block text-[10px] text-white/40 mb-1"
+                                            className="block text-[10px] text-(--sea-ink-soft) opacity-60 mb-1"
                                         >
                                             Operation Status
                                         </label>
@@ -382,7 +381,7 @@ export function AssetForm({
                                             name="status"
                                             value={formData.status}
                                             onChange={handleChange}
-                                            className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-(--sea-teal)"
+                                            className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
                                         >
                                             <option value="active">
                                                 Active
@@ -421,7 +420,7 @@ export function AssetForm({
                                 name="assetTag"
                                 value={formData.assetTag}
                                 onChange={handleChange}
-                                className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-(--sea-teal)"
+                                className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
                                 placeholder="TAG-XXXXX"
                             />
                         </div>
@@ -440,7 +439,7 @@ export function AssetForm({
                                     name="manufacturer"
                                     value={formData.manufacturer || ''}
                                     onChange={handleChange}
-                                    className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-(--sea-teal)"
+                                    className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
                                     placeholder="Dell, HP, Cisco..."
                                 />
                             </div>
@@ -457,7 +456,7 @@ export function AssetForm({
                                     name="model"
                                     value={formData.model || ''}
                                     onChange={handleChange}
-                                    className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-(--sea-teal)"
+                                    className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
                                     placeholder="PowerEdge, ProLiant..."
                                 />
                             </div>
@@ -467,7 +466,9 @@ export function AssetForm({
                     <div className="flex gap-4 pt-6 border-t border-white/10">
                         <button
                             type="submit"
-                            className="flex-1 bg-(--sea-teal) hover:bg-(--sea-aqua) text-(--sea-ink) font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                            className={cn(
+                                "flex-1 bg-(--sea-teal) hover:bg-(--sea-aqua) text-(--sea-ink) font-bold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                            )}
                         >
                             <Save size={18} />
                             {device
@@ -476,13 +477,13 @@ export function AssetForm({
                                     : 'Update Asset'
                                 : mode === 'inventory'
                                   ? 'Add to Library'
-                                  : 'Register Asset'}
+                                  : 'Add Asset'}
                         </button>
                         {device && mode === 'rack' && (
                             <button
                                 type="button"
                                 onClick={handleDelete}
-                                className="bg-red-500/20 hover:bg-red-500/40 text-red-500 p-2 rounded-lg transition-colors border border-red-500/20"
+                                className="bg-red-500/20 hover:bg-red-500/40 text-red-500 p-2 rounded-lg transition-colors border border-red-500/20 cursor-pointer"
                                 title="Delete Asset"
                             >
                                 <Trash2 size={20} />
@@ -493,9 +494,9 @@ export function AssetForm({
             ) : (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 overflow-hidden">
                     <div className="space-y-4">
-                        <h4 className="text-xs font-bold text-white/40 uppercase tracking-widest flex items-center gap-2">
-                            Port Interface Preview
-                        </h4>
+                        <h4 className="text-xs font-bold text-(--sea-ink-soft) opacity-60 uppercase tracking-widest flex items-center gap-2">
+                             Port Interface Preview
+                         </h4>
                         <PortFaceplate
                             device={formData}
                             onPortClick={
@@ -520,7 +521,7 @@ export function AssetForm({
 
                     {mode === 'rack' && (
                         <div className="space-y-4">
-                            <h4 className="text-xs font-bold text-white/40 uppercase tracking-widest">
+                            <h4 className="text-xs font-bold text-(--sea-ink-soft) opacity-60 uppercase tracking-widest">
                                 Connect
                             </h4>
                             <div className="space-y-2">
@@ -558,11 +559,11 @@ export function AssetForm({
                                                     <Zap size={14} />
                                                 </div>
                                                 <div>
-                                                    <div className="text-xs font-bold text-white/80">
+                                                    <div className="text-xs font-bold text-(--sea-ink)">
                                                         {localPort?.name} →{' '}
                                                         {peerDevice?.name}
                                                     </div>
-                                                    <div className="text-[10px] text-white/40">
+                                                    <div className="text-[10px] text-(--sea-ink-soft) opacity-60">
                                                         {conn.type.toUpperCase()}{' '}
                                                         | {peerPort?.name}
                                                     </div>
@@ -573,7 +574,7 @@ export function AssetForm({
                                                 onClick={() =>
                                                     handleDisconnect(conn.id)
                                                 }
-                                                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/20 text-red-500 rounded-md transition-all"
+                                                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/20 text-red-500 rounded-md transition-all cursor-pointer"
                                             >
                                                 <Trash2 size={14} />
                                             </button>
@@ -581,8 +582,8 @@ export function AssetForm({
                                     );
                                 })}
                                 {connections.length === 0 && (
-                                    <div className="text-center py-6 rounded-lg border border-dashed border-white/5">
-                                        <p className="text-[10px] text-white/20 font-medium">
+                                    <div className="text-center py-6 rounded-lg border border-dashed border-black/10 dark:border-white/5">
+                                        <p className="text-[10px] text-(--sea-ink-soft) opacity-40 font-medium">
                                             No active connections
                                         </p>
                                     </div>
@@ -595,20 +596,20 @@ export function AssetForm({
                         <div className="p-4 bg-(--sea-teal)/10 rounded-xl border border-(--sea-teal)/20 space-y-3 animate-in fade-in slide-in-from-bottom-2">
                             <div className="text-[10px] font-bold text-(--sea-teal) uppercase tracking-wider flex items-center justify-between">
                                 <span>PATCHING: {isPatching.name}</span>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsPatching(null)}
-                                    className="text-white/40 hover:text-white"
-                                >
-                                    Cancel
-                                </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsPatching(null)}
+                                        className="text-(--sea-ink-soft) opacity-60 hover:text-(--sea-ink) hover:opacity-100 transition-all cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
                             </div>
                             <div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar pr-2">
                                 {allDevices
                                     .filter((d) => d.id !== device!.id)
                                     .map((d) => (
                                         <div key={d.id} className="space-y-2">
-                                            <div className="text-[9px] uppercase tracking-widest text-white/30 font-bold border-b border-white/5 pb-1">
+                                            <div className="text-[9px] uppercase tracking-widest text-(--sea-ink-soft) opacity-40 font-bold border-b border-black/5 dark:border-white/5 pb-1">
                                                 {d.name}
                                             </div>
                                             <div className="flex flex-wrap gap-1">

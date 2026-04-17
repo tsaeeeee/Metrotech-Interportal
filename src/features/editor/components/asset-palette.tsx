@@ -1,6 +1,7 @@
 import { GripVertical, Edit3, Copy, Trash2, PlusCircle } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { cn } from '#/lib/utils';
 import { DeviceFaceplate } from '../../racks/components/device-faceplate';
 import type { Device } from '#/types/schema';
 
@@ -18,12 +19,12 @@ export function AssetTray({
     onDeleteMaster,
 }: AssetTrayProps) {
     return (
-        <div className="island-shell rounded-2xl p-6 bg-white border border-zinc-100 shadow-sm min-h-[400px] flex flex-col">
+        <div className="island-shell rounded-2xl p-6 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 shadow-sm min-h-[400px] flex flex-col">
             <div className="flex items-center justify-between mb-4 px-1">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">
                     Asset Library
                 </h3>
-                <span className="text-[10px] font-bold text-zinc-300 bg-zinc-50 px-2 py-0.5 rounded-full border border-zinc-100">
+                <span className="text-[10px] font-black text-(--sea-ink-soft) dark:text-(--lagoon) bg-zinc-100 dark:bg-zinc-800/80 px-2.5 py-1 rounded-full border border-zinc-200 dark:border-zinc-700 transition-all shadow-sm">
                     {inventory.length} Blueprints
                 </span>
             </div>
@@ -59,7 +60,7 @@ export function AssetTray({
                 )}
             </div>
 
-            <p className="text-[10px] text-zinc-400 mt-6 px-1 italic border-t border-zinc-50 pt-4">
+            <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-6 px-1 italic border-t border-zinc-100 dark:border-zinc-800 pt-4">
                 Drag Blueprints into the rack to provision new infrastructure.
             </p>
         </div>
@@ -97,7 +98,12 @@ function DraggableAsset({
         <div
             ref={setNodeRef}
             style={style}
-            className={`group relative flex items-center gap-3 p-2.5 rounded-xl border transition-all ${isDragging ? 'ring-2 ring-emerald-500 shadow-xl opacity-50 z-50' : 'bg-white border-zinc-100 hover:border-zinc-300'}`}
+            className={cn(
+                'group relative flex items-center gap-3 p-2.5 rounded-xl border transition-all',
+                isDragging
+                    ? 'ring-2 ring-emerald-500 shadow-xl opacity-50 z-50'
+                    : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 hover:border-(--lagoon) dark:hover:border-(--lagoon) hover:shadow-md cursor-grab active:cursor-grabbing',
+            )}
         >
             <div
                 {...attributes}
@@ -111,13 +117,13 @@ function DraggableAsset({
             </div>
 
             {/* Mini Faceplate Preview */}
-            <div className="w-20 h-6 bg-zinc-900 rounded overflow-hidden shadow-inner border border-zinc-800 shrink-0">
+            <div className="w-20 h-6 bg-zinc-100 dark:bg-zinc-900 rounded overflow-hidden shadow-inner border border-zinc-200 dark:border-zinc-800 shrink-0">
                 <DeviceFaceplate device={asset} />
             </div>
 
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold text-zinc-700 leading-none truncate">
+                    <span className="text-[11px] font-black text-zinc-900 dark:text-zinc-50 leading-none truncate">
                         {asset.name}
                     </span>
                 </div>
@@ -130,14 +136,14 @@ function DraggableAsset({
 
             {/* Quick Actions (only on non-dragging) */}
             {!isDragging && (
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur pl-2 absolute right-2">
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 dark:bg-zinc-900/90 backdrop-blur pl-2 absolute right-2">
                     <button
                         type="button"
                         onClick={(e) => {
                             e.stopPropagation();
                             onEdit();
                         }}
-                        className="p-1.5 hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 rounded-lg transition-colors"
+                        className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 rounded-lg transition-colors cursor-pointer"
                         title="Edit Master"
                     >
                         <Edit3 size={11} />
@@ -148,7 +154,7 @@ function DraggableAsset({
                             e.stopPropagation();
                             onDuplicate();
                         }}
-                        className="p-1.5 hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 rounded-lg transition-colors"
+                        className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 rounded-lg transition-colors cursor-pointer"
                         title="Duplicate"
                     >
                         <Copy size={11} />
@@ -159,7 +165,7 @@ function DraggableAsset({
                             e.stopPropagation();
                             onDelete();
                         }}
-                        className="p-1.5 hover:bg-red-50 text-zinc-400 hover:text-red-500 rounded-lg transition-colors"
+                        className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/50 text-zinc-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400 rounded-lg transition-colors cursor-pointer"
                         title="Remove"
                     >
                         <Trash2 size={11} />

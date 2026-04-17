@@ -3,9 +3,9 @@ import path from 'node:path';
 import { createServerFn } from '@tanstack/react-start';
 import type {
     Database,
-    DataCenter,
-    Device,
     Floor,
+    Room,
+    Device,
     Rack,
     Connection,
 } from '#/types/schema';
@@ -21,6 +21,17 @@ async function readDb(): Promise<Database> {
         const db = JSON.parse(data);
         // Ensure inventory exists
         if (!db.inventory) db.inventory = [];
+
+        // Automatic migration for 'order' property
+        db.rooms = (db.rooms || []).map((r: Room, i: number) => ({
+            ...r,
+            order: r.order ?? (i + 1)
+        }));
+        db.racks = (db.racks || []).map((r: Rack, i: number) => ({
+            ...r,
+            order: r.order ?? (i + 1)
+        }));
+
         return db;
     } catch (error) {
         console.error('Error reading DB:', error);
@@ -41,47 +52,47 @@ async function writeDb(data: Database): Promise<void> {
 }
 
 /**
- * Fetches all available DataCenters.
+ * Fetches all available Floors.
  */
-export const getDatacenters = createServerFn({ method: 'GET' }).handler(
-    async (): Promise<DataCenter[]> => {
+export const getFloors = createServerFn({ method: 'GET' }).handler(
+    async (): Promise<Floor[]> => {
         const db = await readDb();
-        return db.datacenters;
+        return db.floors;
     },
 );
 
 /**
- * Fetches all floors for a specific DataCenter.
+ * Fetches all rooms for a specific Floor.
  */
-export const getDcFloors = createServerFn({ method: 'GET' }).handler(
-    async (ctx: unknown): Promise<Floor[]> => {
+export const getFloorRooms = createServerFn({ method: 'GET' }).handler(
+    async (ctx: unknown): Promise<Room[]> => {
         const { data } = ctx as { data: string };
         const db = await readDb();
-        return db.floors.filter((f) => f.datacenterId === data);
+        return db.rooms.filter((r) => r.floorId === data);
     },
 );
 
 /**
- * Fetches all racks for a specific floor.
+ * Fetches all racks for a specific room.
  */
-export const getFloorRacks = createServerFn({ method: 'GET' }).handler(
+export const getRoomRacks = createServerFn({ method: 'GET' }).handler(
     async (ctx: unknown): Promise<Rack[]> => {
         const { data } = ctx as { data: string };
         const db = await readDb();
-        return db.racks.filter((r) => r.floorId === data);
+        return db.racks.filter((r) => r.roomId === data);
     },
 );
 
 /**
- * Fetches a rack and its full hierarchy (DataCenter and Floor) for breadcrumbs.
+ * Fetches a rack and its full hierarchy (Room and Floor) for breadcrumbs.
  */
 export const getFullRackContext = createServerFn({ method: 'GET' }).handler(
     async (
         ctx: unknown,
     ): Promise<{
         rack: Rack;
+        room: Room;
         floor: Floor;
-        datacenter: DataCenter;
         devices: Device[];
         connections: Connection[];
     }> => {
@@ -91,61 +102,61 @@ export const getFullRackContext = createServerFn({ method: 'GET' }).handler(
         const rack = db.racks.find((r) => r.id === data);
         if (!rack) throw new Error('Rack not found');
 
-        const floor = db.floors.find((f) => f.id === rack.floorId);
-        if (!floor) throw new Error('Floor not found');
+        const room = db.rooms.find((r) => r.id === rack.roomId);
+        if (!room) throw new Error('Room not found');
 
-        const datacenter = db.datacenters.find(
-            (d) => d.id === floor.datacenterId,
+        const floor = db.floors.find(
+            (f) => f.id === room.floorId,
         );
-        if (!datacenter) throw new Error('DataCenter not found');
+        if (!floor) throw new Error('Floor not found');
 
         const devices = db.devices.filter((d) => rack.devices.includes(d.id));
 
         // Phase 3: Get connections involving these devices
-        const portIds = devices.flatMap((d) => d.ports.map((p) => p.id));
+        const portIds = devices.flatMap((d) => (d.ports || []).map((p) => p.id));
         const connections = db.connections.filter(
             (c) => portIds.includes(c.portAId) || portIds.includes(c.portBId),
         );
 
-        return { rack, floor, datacenter, devices, connections };
+        return { rack, room, floor, devices, connections };
     },
 );
 
 /**
- * Fetches a floor and all its racks/devices for the 2D view.
+ * Fetches a room and all its racks/devices for the 2D view.
  */
-export const getFullFloorContext = createServerFn({ method: 'GET' }).handler(
+export const getFullRoomContext = createServerFn({ method: 'GET' }).handler(
     async (
         ctx: unknown,
     ): Promise<{
-        floor: Floor;
+        room: Room;
         racks: Rack[];
-        datacenter: DataCenter;
+        floor: Floor;
         allDevices: Device[];
         connections: Connection[];
     }> => {
-        const { data: floorId } = ctx as { data: string };
+        const { data: roomId } = ctx as { data: string };
         const db = await readDb();
 
-        const floor = db.floors.find((f) => f.id === floorId);
+        const room = db.rooms.find((r) => r.id === roomId);
+        if (!room) throw new Error('Room not found');
+
+        const floor = db.floors.find(
+            (f) => f.id === room.floorId,
+        );
         if (!floor) throw new Error('Floor not found');
 
-        const datacenter = db.datacenters.find(
-            (d) => d.id === floor.datacenterId,
-        );
-        if (!datacenter) throw new Error('DataCenter not found');
-
-        const racks = db.racks.filter((r) => r.floorId === floorId);
+        const racks = db.racks.filter((r) => r.roomId === roomId);
         const deviceIds = racks.flatMap((r) => r.devices);
         const allDevices = db.devices.filter((d) => deviceIds.includes(d.id));
 
-        // Phase 3: Get all connections on this floor
-        const portIds = allDevices.flatMap((d) => d.ports.map((p) => p.id));
+        // Phase 3: Get all connections on this room
+        const portIds = allDevices.flatMap((d) => (d.ports || []).map((p) => p.id));
         const connections = db.connections.filter(
             (c) => portIds.includes(c.portAId) || portIds.includes(c.portBId),
         );
 
-        return { floor, racks, datacenter, allDevices, connections };
+        return { room, racks, floor, allDevices, connections };
     },
 );
 
@@ -216,7 +227,7 @@ export const deleteDevice = createServerFn({ method: 'POST' }).handler(
         }
 
         // Phase 3: Cleanup connections involving this device
-        const portIds = device.ports.map((p) => p.id);
+        const portIds = (device.ports || []).map((p) => p.id);
         db.connections = db.connections.filter(
             (c) => !portIds.includes(c.portAId) && !portIds.includes(c.portBId),
         );
@@ -227,18 +238,18 @@ export const deleteDevice = createServerFn({ method: 'POST' }).handler(
 );
 
 /**
- * Updates a rack's (X, Y) position on the floor grid.
+ * Updates a rack's (X, Y) position on the room grid.
  */
 export const updateRackPosition = createServerFn({ method: 'POST' }).handler(
-    async (ctx: any): Promise<{ success: boolean }> => {
-        const { data } = ctx;
+    async (ctx: { data: { id: string; x: number; y: number } }): Promise<{ success: boolean }> => {
+        const { id, x, y } = ctx.data;
         const db = await readDb();
 
-        const rack = db.racks.find((r) => r.id === data.rackId);
+        const rack = db.racks.find((r) => r.id === id);
         if (!rack) throw new Error('Rack not found');
 
-        rack.x = data.x;
-        rack.y = data.y;
+        rack.x = x;
+        rack.y = y;
 
         await writeDb(db);
         return { success: true };
@@ -279,7 +290,7 @@ export const connectPorts = createServerFn({ method: 'POST' }).handler(
 
         // Update port statuses
         for (const device of db.devices) {
-            for (const port of device.ports) {
+            for (const port of device.ports || []) {
                 if (port.id === data.portAId || port.id === data.portBId) {
                     port.status = 'plugged';
                 }
@@ -304,7 +315,7 @@ export const disconnectPorts = createServerFn({ method: 'POST' }).handler(
 
         // Free ports
         for (const device of db.devices) {
-            for (const port of device.ports) {
+            for (const port of device.ports || []) {
                 if (
                     port.id === connection.portAId ||
                     port.id === connection.portBId
@@ -395,5 +406,199 @@ export const duplicateInventoryAsset = createServerFn({
         db.inventory.push(clone);
         await writeDb(db);
         return { success: true, device: clone };
+    },
+);
+
+/**
+ * Creates a new Room in the database.
+ */
+export const createRoom = createServerFn({ method: 'POST' }).handler(
+    async (ctx: {
+        data: { name: string; floorId: string; width: number; height: number };
+    }): Promise<{ success: boolean; room: Room }> => {
+        const { data } = ctx;
+        const db = await readDb();
+
+        const newRoom: Room = {
+            id: `rm-${Date.now()}`,
+            name: data.name,
+            floorId: data.floorId,
+            width: data.width,
+            height: data.height,
+            order: (db.rooms.length > 0 ? Math.max(...db.rooms.map(r => r.order || 0)) : 0) + 1,
+        };
+
+        db.rooms.push(newRoom);
+        await writeDb(db);
+        return { success: true, room: newRoom };
+    },
+);
+
+/**
+ * Creates a new Rack in the database.
+ */
+export const createRack = createServerFn({ method: 'POST' }).handler(
+    async (ctx: {
+        data: { name: string; roomId: string; uCapacity: number; x: number; y: number };
+    }): Promise<{ success: boolean; rack: Rack }> => {
+        const { data } = ctx;
+        const db = await readDb();
+
+        const newRack: Rack = {
+            id: `rk-${Date.now()}`,
+            name: data.name,
+            roomId: data.roomId,
+            uCapacity: data.uCapacity,
+            devices: [],
+            x: data.x,
+            y: data.y,
+            order: (db.racks.filter(r => r.roomId === data.roomId).length > 0 
+                ? Math.max(...db.racks.filter(r => r.roomId === data.roomId).map(r => r.order || 0)) 
+                : 0) + 1,
+        };
+
+        db.racks.push(newRack);
+        await writeDb(db);
+        return { success: true, rack: newRack };
+    },
+);
+
+/**
+ * Fetches all floors, rooms, and racks for the infrastructure navigator.
+ */
+export const getInfrastructureSummary = createServerFn({
+    method: 'GET',
+}).handler(
+    async (): Promise<{
+        floors: Floor[];
+        rooms: Room[];
+        racks: Rack[];
+    }> => {
+        const db = await readDb();
+        return {
+            floors: db.floors || [],
+            rooms: (db.rooms || []).sort((a, b) => (a.order || 0) - (b.order || 0)),
+            racks: (db.racks || []).sort((a, b) => (a.order || 0) - (b.order || 0)),
+        };
+    },
+);
+
+/**
+ * Updates a Room's properties.
+ */
+export const updateRoom = createServerFn({ method: 'POST' }).handler(
+    async (ctx: { data: { id: string; name: string } }): Promise<{ success: boolean }> => {
+        const { data } = ctx;
+        const db = await readDb();
+        const room = db.rooms.find((r) => r.id === data.id);
+        if (!room) throw new Error('Room not found');
+        room.name = data.name;
+        await writeDb(db);
+        return { success: true };
+    },
+);
+
+/**
+ * Deletes a Room and all its nested Racks and Devices.
+ */
+export const deleteRoom = createServerFn({ method: 'POST' }).handler(
+    async (ctx: { data: string }): Promise<{ success: boolean }> => {
+        const { data: roomId } = ctx;
+        const db = await readDb();
+
+        // 1. Find all racks in this room
+        const roomRacks = db.racks.filter((r) => r.roomId === roomId);
+        const rackIds = roomRacks.map((r) => r.id);
+
+        // 2. Find all devices in those racks
+        const deviceIds = roomRacks.flatMap((r) => r.devices);
+
+        // 3. Remove connections involving those devices
+        const devicePorts = db.devices
+            .filter((d) => deviceIds.includes(d.id))
+            .flatMap((d) => (d.ports || []).map((p) => p.id));
+        
+        db.connections = db.connections.filter(
+            (c) => !devicePorts.includes(c.portAId) && !devicePorts.includes(c.portBId)
+        );
+
+        // 4. Remove devices, racks, and room
+        db.devices = db.devices.filter((d) => !deviceIds.includes(d.id));
+        db.racks = db.racks.filter((r) => r.roomId !== roomId);
+        db.rooms = db.rooms.filter((r) => r.id !== roomId);
+
+        await writeDb(db);
+        return { success: true };
+    },
+);
+
+/**
+ * Updates a Rack's properties (Name, Capacity).
+ */
+export const updateRack = createServerFn({ method: 'POST' }).handler(
+    async (ctx: { data: { id: string; name: string; uCapacity: number } }): Promise<{ success: boolean }> => {
+        const { data } = ctx;
+        const db = await readDb();
+        const rack = db.racks.find((r) => r.id === data.id);
+        if (!rack) throw new Error('Rack not found');
+        rack.name = data.name;
+        rack.uCapacity = data.uCapacity;
+        await writeDb(db);
+        return { success: true };
+    },
+);
+
+/**
+ * Deletes a Rack and all its Devices.
+ */
+export const deleteRack = createServerFn({ method: 'POST' }).handler(
+    async (ctx: { data: string }): Promise<{ success: boolean }> => {
+        const { data: rackId } = ctx;
+        const db = await readDb();
+
+        const rack = db.racks.find((r) => r.id === rackId);
+        if (!rack) throw new Error('Rack not found');
+
+        const deviceIds = rack.devices;
+
+        // Cleanup connections
+        const devicePorts = db.devices
+            .filter((d) => deviceIds.includes(d.id))
+            .flatMap((d) => (d.ports || []).map((p) => p.id));
+        
+        db.connections = db.connections.filter(
+            (c) => !devicePorts.includes(c.portAId) && !devicePorts.includes(c.portBId)
+        );
+
+        db.devices = db.devices.filter((d) => !deviceIds.includes(d.id));
+        db.racks = db.racks.filter((r) => r.id !== rackId);
+
+        await writeDb(db);
+        return { success: true };
+    },
+);
+
+/**
+ * Updates the order of rooms or racks.
+ */
+export const updateEntityOrder = createServerFn({ method: 'POST' }).handler(
+    async (ctx: { data: { type: 'room' | 'rack'; orders: { id: string; order: number }[] } }): Promise<{ success: boolean }> => {
+        const { type, orders } = ctx.data;
+        const db = await readDb();
+
+        if (type === 'room') {
+            orders.forEach(({ id, order }) => {
+                const room = db.rooms.find(r => r.id === id);
+                if (room) room.order = order;
+            });
+        } else {
+            orders.forEach(({ id, order }) => {
+                const rack = db.racks.find(r => r.id === id);
+                if (rack) rack.order = order;
+            });
+        }
+
+        await writeDb(db);
+        return { success: true };
     },
 );

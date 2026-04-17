@@ -1,23 +1,33 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
 import { Activity, Info, Box, Map as MapIcon, Plus } from 'lucide-react';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import type {
-    DataCenter,
-    Device,
     Floor,
+    Room,
+    Device,
     Rack,
     Connection,
 } from '#/types/schema';
 import { BreadcrumbNav } from '../components/breadcrumb-nav';
 import {
     getFullRackContext,
-    getFullFloorContext,
+    getFullRoomContext,
     upsertDevice,
     getInventory,
     deleteInventoryAsset,
     duplicateInventoryAsset,
+    createRoom,
+    createRack,
+    getInfrastructureSummary,
+    updateRoom,
+    deleteRoom,
+    updateRack,
+    deleteRack,
+    updateEntityOrder,
+    updateRackPosition,
 } from '../features/database/database-service';
+import { InfrastructureNavigator } from '../features/navigation/components/infrastructure-navigator';
 import { RackUGrid } from '../features/racks/components/rack-u-grid';
 import {
     DndContext,
@@ -27,16 +37,16 @@ import {
     type DragMoveEvent,
 } from '@dnd-kit/core';
 import { createSnapToUModifier } from '../features/racks/utils/modifiers';
-import { useMemo } from 'react';
 import { isRangeOccupied } from '../features/racks/utils/collision';
-import { FloorGrid } from '../features/floor/components/floor-grid';
 import { Drawer } from '../components/drawer';
 import { AssetForm } from '../features/editor/components/asset-form';
 import { AssetTray } from '../features/editor/components/asset-palette';
+import { cn } from '#/lib/utils';
+
 
 export const Route = createFileRoute('/')({ component: App });
 
-type ViewMode = 'floor' | 'rack';
+type ViewMode = 'room' | 'rack';
 
 function App() {
     // 1. DND Global State
@@ -48,25 +58,34 @@ function App() {
     const snapToGridModifier = useMemo(() => createSnapToUModifier(24), []);
 
     const fetchRack = useServerFn(getFullRackContext);
-    const fetchFloor = useServerFn(getFullFloorContext);
+    const fetchRoom = useServerFn(getFullRoomContext);
     const upsertDeviceFn = useServerFn(upsertDevice);
     const fetchInventoryFn = useServerFn(getInventory);
     const duplicateMasterFn = useServerFn(duplicateInventoryAsset);
     const deleteMasterFn = useServerFn(deleteInventoryAsset);
+    const createRoomFn = useServerFn(createRoom);
+    const createRackFn = useServerFn(createRack);
+    const fetchHierarchyFn = useServerFn(getInfrastructureSummary);
+    const updateRoomFn = useServerFn(updateRoom);
+    const deleteRoomFn = useServerFn(deleteRoom);
+    const updateRackFn = useServerFn(updateRack);
+    const deleteRackFn = useServerFn(deleteRack);
+    const updateEntityOrderFn = useServerFn(updateEntityOrder);
+    const updateRackPositionFn = useServerFn(updateRackPosition);
 
     const [viewMode, setViewMode] = useState<ViewMode>('rack');
     const [rackData, setRackData] = useState<{
         rack: Rack;
+        room: Room;
         floor: Floor;
-        datacenter: DataCenter;
         devices: Device[];
         connections: Connection[];
     } | null>(null);
 
-    const [floorData, setFloorData] = useState<{
-        floor: Floor;
+    const [roomData, setRoomData] = useState<{
+        room: Room;
         racks: Rack[];
-        datacenter: DataCenter;
+        floor: Floor;
         allDevices: Device[];
         connections: Connection[];
     } | null>(null);
@@ -77,6 +96,11 @@ function App() {
     const initialLoadRef = useRef(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerMode, setDrawerMode] = useState<'inventory' | 'rack'>('rack');
+    const [hierarchy, setHierarchy] = useState<{
+        floors: Floor[];
+        rooms: Room[];
+        racks: Rack[];
+    } | null>(null);
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
     const [selectedDevice, setSelectedDevice] = useState<Device | undefined>(
         undefined,
@@ -87,6 +111,15 @@ function App() {
         isOccupied: boolean;
     } | null>(null);
 
+    // 2. Expansion State
+    const [isAddingRoom, setIsAddingRoom] = useState(false);
+    const [isAddingRack, setIsAddingRack] = useState(false);
+    const [newRoomName, setNewRoomName] = useState('');
+    const [newRackName, setNewRackName] = useState('');
+    const [newRackCapacity, setNewRackCapacity] = useState<number>(42);
+
+    const currentData = useMemo(() => (viewMode === 'rack' ? rackData : roomData), [viewMode, rackData, roomData]);
+
     const loadRack = useCallback(
         async (id: string, silent = false) => {
             // Only show full-page loading state if we have ZERO data
@@ -96,7 +129,7 @@ function App() {
             setIsRefreshing(true);
             try {
                 const result = await fetchRack({ data: id } as never);
-                setRackData(result);
+                setRackData(result as any);
                 setViewMode('rack');
             } finally {
                 if (!silent) setLoading(false);
@@ -106,22 +139,22 @@ function App() {
         [fetchRack, rackData],
     );
 
-    const loadFloor = useCallback(
+    const loadRoom = useCallback(
         async (id: string, silent = false) => {
-            if (!silent && !floorData) {
+            if (!silent && !roomData) {
                 setLoading(true);
             }
             setIsRefreshing(true);
             try {
-                const result = await fetchFloor({ data: id } as never);
-                setFloorData(result);
-                setViewMode('floor');
+                const result = await fetchRoom({ data: id } as never);
+                setRoomData(result as any);
+                setViewMode('room');
             } finally {
                 if (!silent) setLoading(false);
                 setIsRefreshing(false);
             }
         },
-        [fetchFloor, floorData],
+        [fetchRoom, roomData],
     );
 
     const loadInventory = useCallback(async () => {
@@ -133,17 +166,27 @@ function App() {
         }
     }, [fetchInventoryFn]);
 
+    const loadHierarchy = useCallback(async () => {
+        try {
+            const result = await fetchHierarchyFn();
+            setHierarchy(result as any);
+        } catch (error) {
+            console.error('Failed to load hierarchy:', error);
+        }
+    }, [fetchHierarchyFn]);
+
     useEffect(() => {
         if (initialLoadRef.current) return;
         initialLoadRef.current = true;
 
-        if (!rackData && !floorData) {
+        if (!rackData && !roomData) {
             setLoading(true);
         }
 
         loadRack('rk-01');
         loadInventory();
-    }, [loadRack, loadInventory, rackData, floorData, initialLoadRef]);
+        loadHierarchy();
+    }, [loadRack, loadInventory, loadHierarchy, rackData, roomData, initialLoadRef]);
 
     const handleAddAsset = () => {
         setSelectedDevice(undefined);
@@ -186,12 +229,126 @@ function App() {
 
     const handleAssetSaved = () => {
         setDrawerOpen(false);
-        refreshData(true); // Silent refresh
+        refreshData();
+    };
+
+    const handleCreateRoom = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newRoomName.trim()) return;
+        setLoading(true);
+        try {
+            await createRoomFn({
+                data: {
+                    name: newRoomName,
+                    floorId: 'dc-01', // Default DC for now
+                    width: 12,
+                    height: 10,
+                },
+            } as never);
+            setNewRoomName('');
+            setIsAddingRoom(false);
+            refreshData();
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCreateRack = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newRackName.trim() || !roomData) return;
+        setLoading(true);
+        try {
+            await createRackFn({
+                data: {
+                    name: newRackName,
+                    roomId: roomData.room.id,
+                    uCapacity: newRackCapacity,
+                    x: Math.floor(Math.random() * 8), // Random initial position
+                    y: Math.floor(Math.random() * 8),
+                },
+            } as never);
+            setNewRackName('');
+            setIsAddingRack(false);
+            refreshData();
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpdateRoom = async (id: string, name: string) => {
+        setIsRefreshing(true);
+        try {
+            await updateRoomFn({ data: { id, name } } as never);
+            await loadHierarchy();
+            if (roomData?.room.id === id) refreshData(true);
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    const handleDeleteRoom = async (id: string) => {
+        if (!confirm('Delete this room and all its racks?')) return;
+        setIsRefreshing(true);
+        try {
+            await deleteRoomFn({ data: id } as never);
+            await loadHierarchy();
+            if (roomData?.room.id === id || rackData?.room.id === id) {
+                loadRack('rk-01'); // Fallback
+            }
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    const handleUpdateRack = async (id: string, name: string) => {
+        setIsRefreshing(true);
+        try {
+            await updateRackFn({ data: { id, name, uCapacity: 42 } } as never); // Default capacity for now
+            await loadHierarchy();
+            if (rackData?.rack.id === id) refreshData(true);
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    const handleDeleteRack = async (id: string) => {
+        if (!confirm('Delete this rack and its devices?')) return;
+        setIsRefreshing(true);
+        try {
+            await deleteRackFn({ data: id } as never);
+            await loadHierarchy();
+            if (rackData?.rack.id === id) {
+                loadRoom(roomData?.room.id || 'fl-01');
+            }
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    const handleMoveRack = async (id: string, x: number, y: number) => {
+        setIsRefreshing(true);
+        try {
+            await updateRackPositionFn({ data: { id, x, y } } as never);
+            await loadHierarchy();
+            if (viewMode === 'room' && roomData) loadRoom(roomData.room.id, true);
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    const handleReorder = async (type: 'room' | 'rack', orders: { id: string; order: number }[]) => {
+        setIsRefreshing(true);
+        try {
+            await updateEntityOrderFn({ data: { type, orders } } as never);
+            await loadHierarchy();
+        } finally {
+            setIsRefreshing(false);
+        }
     };
 
     const handleMoveDevice = async (deviceId: string, newUPosition: number) => {
         const currentDevices =
-            viewMode === 'rack' ? rackData?.devices : floorData?.allDevices;
+            viewMode === 'rack' ? rackData?.devices : roomData?.allDevices;
         const device = currentDevices?.find((d) => d.id === deviceId);
         if (!device) return;
 
@@ -252,21 +409,18 @@ function App() {
 
     const refreshData = useCallback(
         (silent = false) => {
+            if (viewMode === 'rack' && rackData) loadRack(rackData.rack.id, silent);
+            if (viewMode === 'room' && roomData) loadRoom(roomData.room.id, silent);
             loadInventory();
-            if (viewMode === 'rack' && rackData) {
-                loadRack(rackData.rack.id, silent);
-            } else if (viewMode === 'floor' && floorData) {
-                loadFloor(floorData.floor.id, silent);
-            }
+            loadHierarchy();
         },
-        [viewMode, rackData, floorData, loadRack, loadFloor, loadInventory],
+        [viewMode, rackData, roomData, loadRack, loadRoom, loadInventory],
     );
 
-    const currentData = viewMode === 'rack' ? rackData : floorData;
 
     // Initial boundary check for currentData availability
-    const datacenterName = currentData?.datacenter.name || '...';
     const floorName = currentData?.floor.name || '...';
+    const roomName = currentData?.room.name || '...';
     const rackName = viewMode === 'rack' ? rackData?.rack.name : undefined;
 
     return (
@@ -330,7 +484,7 @@ function App() {
                 const deviceId = active.id as string;
                 const device = (
                     rackData?.devices ||
-                    floorData?.allDevices ||
+                    roomData?.allDevices ||
                     []
                 ).find((d) => d.id === deviceId);
 
@@ -339,67 +493,169 @@ function App() {
                 }
             }}
         >
-            <main className="page-wrap px-4 pb-12 pt-8">
-                <div className="max-w-7xl mx-auto">
+            <main className="w-full px-4 md:px-8 pb-12 pt-8">
+                <div className="max-w-[1920px] w-full mx-auto">
                     {/* Header Section */}
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-                        <div>
+                    <div className="flex flex-col gap-6 mb-10">
+                        {/* Top Level: Breadcrumbs */}
+                        <div className="flex items-center border-b border-zinc-100 pb-4">
                             <BreadcrumbNav
-                                datacenter={datacenterName}
-                                floor={floorName}
+                                datacenter={floorName}
+                                floor={roomName}
                                 rack={rackName}
                             />
-                            <h1 className="text-3xl font-bold text-(--sea-ink) tracking-tight flex items-center gap-3">
-                                {viewMode === 'rack'
-                                    ? `Rack ${rackData?.rack.name}`
-                                    : `Floor Plan: ${floorData?.floor.name}`}
-                            </h1>
-                            <p className="text-(--sea-ink-soft) text-sm mt-1">
-                                {viewMode === 'rack'
-                                    ? `${rackData?.rack.uCapacity}U Capacity • ${rackData?.devices.length} Active Devices`
-                                    : `${floorData?.racks.length} Racks • ${floorData?.allDevices.length} Total Assets`}
-                            </p>
                         </div>
 
-                        <div className="flex gap-2">
-                            <div className="bg-white/50 p-1 rounded-xl border border-zinc-200 flex gap-1 mr-2">
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        viewMode === 'floor' &&
-                                        loadRack('rk-01')
-                                    }
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'rack' ? 'bg-white text-(--sea-ink) shadow-sm' : 'text-zinc-500 hover:text-zinc-800'}`}
-                                >
-                                    <Box size={14} />
-                                    Rack
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        viewMode === 'rack' &&
-                                        loadFloor('fl-01')
-                                    }
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'floor' ? 'bg-white text-(--sea-ink) shadow-sm' : 'text-zinc-500 hover:text-zinc-800'}`}
-                                >
-                                    <MapIcon size={14} />
-                                    Floor
-                                </button>
+                        {/* Main Level: Context Title & Primary Actions */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div>
+                                <h1 className="text-3xl font-black text-zinc-800 dark:text-zinc-100 tracking-tighter">
+                                    {viewMode === 'rack'
+                                        ? (rackData?.rack.name || 'Rack')
+                                        : `Room Plan: ${roomData?.room.name || 'Loading...'}`}
+                                </h1>
+                                <p className="text-(--sea-ink-soft) text-sm font-medium mt-1 opacity-70">
+                                    {viewMode === 'rack'
+                                        ? `${rackData?.rack.uCapacity}U Capacity • ${rackData?.devices.length} Active Devices`
+                                        : `${roomData?.racks.length} Racks • ${roomData?.allDevices.length} Total Assets`}
+                                </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={handleAddAsset}
-                                className="flex items-center gap-2 px-4 py-2 bg-(--lagoon-deep) text-white rounded-lg text-sm font-semibold shadow-md shadow-emerald-900/20 hover:brightness-110 transition-all active:scale-95"
-                            >
-                                <Plus size={16} />
-                                Add Asset
-                            </button>
+
+                            <div className="flex items-center gap-3">
+
+
+                                {/* Contextual Primary Action */}
+                                {viewMode === 'room' ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsAddingRack(true)}
+                                        className={cn(
+                                            "flex items-center gap-2 px-6 py-2.5 bg-(--lagoon-deep) text-white rounded-xl text-sm font-black shadow-lg shadow-emerald-900/15 dark:shadow-lagoon/20 hover:brightness-110 transition-all active:scale-95 whitespace-nowrap border border-white/10 dark:border-white/5 cursor-pointer"
+                                        )}
+                                    >
+                                        <Plus size={18} />
+                                        Add Rack
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={handleAddAsset}
+                                        className={cn(
+                                            "flex items-center gap-2 px-6 py-2.5 bg-(--lagoon-deep) text-white rounded-xl text-sm font-black shadow-lg shadow-emerald-900/15 dark:shadow-lagoon/20 hover:brightness-110 transition-all active:scale-95 whitespace-nowrap border border-white/10 dark:border-white/5 cursor-pointer"
+                                        )}
+                                    >
+                                        <Plus size={18} />
+                                        Add Asset
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                    <div className="grid lg:grid-cols-[1fr_360px] gap-8 items-start">
-                        {/* Main Workspace Visualizer */}
-                        <section className="island-shell bg-white/60 backdrop-blur-xl border border-white/40 rounded-[2.5rem] p-8 md:p-12 shadow-2xl shadow-emerald-900/5 min-h-200 flex justify-center items-center overflow-auto border-dashed">
+                    {/* Creation Forms */}
+                    {isAddingRoom && (
+                        <div className="mb-8 p-6 bg-white dark:bg-zinc-900 rounded-2xl border-2 border-(--lagoon-deep)/20 shadow-xl animate-in zoom-in-95 duration-200">
+                            <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-4 flex items-center gap-2">
+                                <Plus className="text-(--lagoon-deep)" />
+                                Create New Room
+                            </h3>
+                            <form onSubmit={handleCreateRoom} className="flex flex-col md:flex-row gap-4">
+                                <input
+                                    type="text"
+                                    placeholder="Room Name (e.g. Server Room B)"
+                                    value={newRoomName}
+                                    onChange={(e) => setNewRoomName(e.target.value)}
+                                    className="flex-1 px-4 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-(--lagoon-deep)/50 transition-all font-medium dark:text-white"
+                                    autoFocus
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                        type="submit"
+                                        className="px-6 py-2 bg-(--lagoon-deep) text-white rounded-xl font-bold shadow-lg shadow-emerald-900/15 hover:brightness-110 transition-all cursor-pointer"
+                                    >
+                                        Create Room
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsAddingRoom(false)}
+                                        className="px-6 py-2 bg-zinc-100 text-zinc-600 rounded-xl font-bold hover:bg-zinc-200 transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {isAddingRack && (
+                        <div className="mb-8 p-6 bg-white dark:bg-zinc-900 rounded-2xl border-2 border-(--lagoon-deep)/20 shadow-xl animate-in zoom-in-95 duration-200">
+                            <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-4 flex items-center gap-2">
+                                <Plus className="text-(--lagoon-deep)" />
+                                Add New Rack to {roomData?.room.name}
+                            </h3>
+                            <form onSubmit={handleCreateRack} className="flex flex-col md:flex-row gap-4 items-end">
+                                <div className="flex-1 space-y-2">
+                                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">Rack Name</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Rack Name (e.g. A-12)"
+                                        value={newRackName}
+                                        onChange={(e) => setNewRackName(e.target.value)}
+                                        className="w-full px-4 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-(--lagoon-deep)/50 transition-all font-medium dark:text-white"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">Capacity</label>
+                                    <select
+                                        value={newRackCapacity}
+                                        onChange={(e) => setNewRackCapacity(Number(e.target.value))}
+                                        className="w-32 px-4 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-(--lagoon-deep)/50 transition-all font-bold appearance-none cursor-pointer dark:text-white"
+                                    >
+                                        <option value={42}>42U</option>
+                                        <option value={48}>48U</option>
+                                        <option value={52}>52U</option>
+                                    </select>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="submit"
+                                        className="px-6 py-2 bg-(--lagoon-deep) text-white rounded-xl font-bold shadow-lg shadow-emerald-900/15 hover:brightness-110 transition-all cursor-pointer"
+                                    >
+                                        Create Rack
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsAddingRack(false)}
+                                        className="px-6 py-2 bg-zinc-100 text-zinc-600 rounded-xl font-bold hover:bg-zinc-200 transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    <div className="grid lg:grid-cols-[320px_1fr_400px] 2xl:grid-cols-[350px_1fr_450px] gap-8 items-start">
+                        {/* 1. Infrastructure Navigator Sidebar */}
+                        <InfrastructureNavigator 
+                            hierarchy={hierarchy}
+                            viewMode={viewMode}
+                            currentRoomId={roomData?.room.id || rackData?.room.id}
+                            currentRackId={rackData?.rack.id}
+                            onLoadRoom={loadRoom}
+                            onLoadRack={loadRack}
+                            onAddRoom={() => setIsAddingRoom(true)}
+                            onAddRack={() => setIsAddingRack(true)}
+                            onUpdateRoom={handleUpdateRoom}
+                            onDeleteRoom={handleDeleteRoom}
+                            onUpdateRack={handleUpdateRack}
+                            onDeleteRack={handleDeleteRack}
+                            onReorder={handleReorder}
+                        />
+
+                        {/* 2. Main Workspace Visualizer */}
+                        <section className="island-shell bg-white/60 dark:bg-zinc-900/60 backdrop-blur-xl border border-white/40 dark:border-zinc-800/40 rounded-[2.5rem] p-8 md:py-12 md:px-12 xl:px-16 shadow-2xl shadow-emerald-900/5 min-h-200 flex justify-center items-center overflow-auto border-dashed">
                             {loading && !currentData ? (
                                 <div className="flex flex-col items-center gap-3 opacity-30">
                                     <Activity
@@ -419,16 +675,12 @@ function App() {
                                     onEditDevice={handleEditAsset}
                                     projectedPlacement={projectedPlacement}
                                 />
-                            ) : floorData ? (
-                                <FloorGrid
-                                    floor={floorData.floor}
-                                    racks={floorData.racks}
-                                    allDevices={floorData.allDevices}
-                                    onRackSelect={loadRack}
-                                />
                             ) : (
-                                <div className="text-zinc-400 text-xs italic">
-                                    Select a rack or floor to view connections
+                                <div className="flex flex-col items-center gap-4 text-zinc-400 py-20 animate-in fade-in zoom-in duration-300">
+                                    <div className="w-16 h-16 rounded-2xl bg-zinc-100 border border-zinc-200 flex items-center justify-center shadow-inner">
+                                        <Box size={24} className="text-zinc-300" />
+                                    </div>
+                                    <div className="text-sm font-medium">Select a rack from the sidebar to view its configuration.</div>
                                 </div>
                             )}
                         </section>
@@ -446,12 +698,12 @@ function App() {
                                 title={
                                     viewMode === 'rack'
                                         ? 'Rack Utilization'
-                                        : 'Floor Utilization'
+                                        : 'Room Utilization'
                                 }
                                 value={
                                     viewMode === 'rack'
                                         ? `${Math.round(((rackData?.devices.reduce((acc, d) => acc + d.uHeight, 0) || 0) / (rackData?.rack.uCapacity || 1)) * 100)}%`
-                                        : `${Math.round(((floorData?.racks.length || 0) / ((floorData?.floor.width || 1) * (floorData?.floor.height || 1))) * 100)}%`
+                                        : `${Math.round(((roomData?.racks.length || 0) / ((roomData?.room.width || 1) * (roomData?.room.height || 1))) * 100)}%`
                                 }
                                 icon={
                                     <Activity
@@ -470,13 +722,13 @@ function App() {
                                     <span className="text-xs font-bold uppercase tracking-widest text-(--sea-ink-soft)">
                                         {viewMode === 'rack'
                                             ? 'Rack Inventory'
-                                            : 'Floor Asset Overview'}
+                                            : 'Room Asset Overview'}
                                     </span>
                                 </div>
                                 <div className="space-y-3">
                                     {(viewMode === 'rack'
                                         ? rackData?.devices
-                                        : floorData?.allDevices
+                                        : roomData?.allDevices
                                     )?.map((device) => (
                                         <button
                                             key={device.id}
@@ -484,7 +736,7 @@ function App() {
                                             onClick={() =>
                                                 handleEditAsset(device)
                                             }
-                                            className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group text-left"
+                                            className="w-full flex items-center justify-between p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer group text-left"
                                         >
                                             <div className="flex flex-col">
                                                 <span className="text-sm font-semibold">
@@ -529,12 +781,12 @@ function App() {
                         mode={drawerMode}
                         device={selectedDevice}
                         allDevices={
-                            floorData?.allDevices || rackData?.devices || []
+                            roomData?.allDevices || rackData?.devices || []
                         }
                         connections={
                             viewMode === 'rack'
                                 ? rackData?.connections || []
-                                : floorData?.connections || []
+                                : roomData?.connections || []
                         }
                         rackId={rackData?.rack.id || 'rk-01'}
                         onSave={handleAssetSaved}
@@ -547,26 +799,16 @@ function App() {
     );
 }
 
-function StatsCard({
-    title,
-    value,
-    icon,
-}: {
-    title: string;
-    value: string;
-    icon: React.ReactNode;
-}) {
+function StatsCard({ title, value, icon }: { title: string; value: string; icon: React.ReactNode }) {
     return (
-        <div className="island-shell rounded-2xl p-5 bg-white border border-zinc-100 shadow-sm flex items-center justify-between">
+        <div className="island-shell rounded-2xl p-6 bg-white/40 dark:bg-zinc-900/40 shadow-2xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
             <div>
-                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">
-                    {title}
-                </p>
-                <p className="text-2xl font-black text-(--sea-ink) leading-none">
-                    {value}
-                </p>
+                <p className="text-[10px] font-extrabold text-(--sea-ink-soft) uppercase tracking-widest mb-1">{title}</p>
+                <div className="text-2xl font-black text-(--sea-ink) tracking-tight">{value}</div>
             </div>
-            <div className="p-3 bg-zinc-50 rounded-xl">{icon}</div>
+            <div className="w-10 h-10 rounded-xl bg-zinc-100/50 dark:bg-zinc-800/50 flex items-center justify-center border border-zinc-200 dark:border-zinc-700">
+                {icon}
+            </div>
         </div>
     );
 }

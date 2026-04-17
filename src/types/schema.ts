@@ -1,18 +1,19 @@
-export interface DataCenter {
+export interface Floor {
     id: string;
     name: string;
     location: string;
 }
 
-export interface Floor {
+export interface Room {
     id: string;
     name: string;
-    datacenterId: string;
+    floorId: string;
     width: number; // in meters
     height: number; // in meters
+    order: number;
 }
 
-export type DeviceType = 'server' | 'network' | 'pdu' | 'storage';
+export type DeviceType = 'server' | 'network' | 'storage';
 export type AssetStatus =
     | 'active'
     | 'maintenance'
@@ -59,17 +60,18 @@ export interface Device {
 export interface Rack {
     id: string;
     name: string;
-    floorId: string;
+    roomId: string;
     uCapacity: number;
     devices: string[];
     // New Spatial Coordinates
     x: number;
     y: number;
+    order: number;
 }
 
 export interface Database {
-    datacenters: DataCenter[];
     floors: Floor[];
+    rooms: Room[];
     racks: Rack[];
     devices: Device[];
     connections: Connection[]; // Phase 3: Cabling

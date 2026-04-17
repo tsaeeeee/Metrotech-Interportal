@@ -2,6 +2,7 @@ import type { Device, Connection } from '#/types/schema';
 import { RackDevice } from './rack-device.tsx';
 import { CableOverlay } from '#/features/connectivity/components/cable-overlay';
 import { useDroppable } from '@dnd-kit/core';
+import { cn } from '#/lib/utils';
 
 interface RackUGridProps {
     uCapacity: number;
@@ -41,21 +42,31 @@ export function RackUGrid({
                 }}
             >
                 {/* Visual "Rail" Accents */}
-                <div className="absolute inset-y-0 left-2 w-1 bg-white/10" />
-                <div className="absolute inset-y-0 right-2 w-1 bg-white/10" />
+                <div className="absolute inset-y-0 left-2 w-1 bg-zinc-300 dark:bg-white/10" />
+                <div className="absolute inset-y-0 right-2 w-1 bg-zinc-300 dark:bg-white/10" />
 
                 {/* Collision / Projected Highlight */}
                 {projectedPlacement && (
                     <div
-                        className={`absolute left-0 right-0 z-0 transition-all duration-75 ${projectedPlacement.isOccupied ? 'bg-red-500/20 border-y border-red-500/40' : 'bg-emerald-500/20 border-y border-emerald-500/40'}`}
+                        className={cn(
+                            'absolute left-1 right-1 z-0 transition-all duration-75 rounded-sm',
+                            projectedPlacement.isOccupied
+                                ? 'bg-red-500/20 border border-red-500/40'
+                                : 'bg-emerald-500/20 border border-emerald-500/40',
+                        )}
                         style={{
                             top: `${(uCapacity - projectedPlacement.uPosition - projectedPlacement.uHeight + 1) * 24}px`,
-                            height: `${projectedPlacement.uHeight * 24 - 1}px`, // Leave grid line visible
+                            height: `${projectedPlacement.uHeight * 24}px`,
                         }}
                     >
                         <div className="absolute inset-0 flex items-center justify-center">
                             <span
-                                className={`text-[10px] font-black uppercase tracking-widest ${projectedPlacement.isOccupied ? 'text-red-400' : 'text-emerald-400'}`}
+                                className={cn(
+                                    'text-[10px] font-black uppercase tracking-widest',
+                                    projectedPlacement.isOccupied
+                                        ? 'text-red-400'
+                                        : 'text-emerald-400',
+                                )}
                             >
                                 {projectedPlacement.isOccupied
                                     ? 'Conflict'
@@ -70,7 +81,8 @@ export function RackUGrid({
                     {uSlots.map((u) => (
                         <div
                             key={`slot-${u}`}
-                            className="h-6 border-b border-zinc-800/50 relative"
+                            style={{ height: '24px', flexShrink: 0 }}
+                            className="relative shadow-[0_1px_0_rgba(0,0,0,0.1)] dark:shadow-[0_1px_0_rgba(39,39,42,0.5)]"
                         >
                             <span className="absolute -left-10 top-1 text-[10px] font-mono text-zinc-500 select-none">
                                 {u}U

@@ -35,7 +35,7 @@ export function DeviceFaceplate({ device, isDragging }: DeviceFaceplateProps) {
         >
             <title>{`${device.type} faceplate for ${device.name}`}</title>
             {/* Base Chassis */}
-            <rect width="320" height={pxHeight} rx="2" fill="#18181B" />
+            <rect width="320" height={pxHeight} rx="2" fill="currentColor" className="text-zinc-900 dark:text-zinc-950" />
             <rect
                 x="0.5"
                 y="0.5"
@@ -69,7 +69,8 @@ function NetworkFaceplate({ uHeight }: { uHeight: number }) {
                 width="296"
                 height={pxHeight - 8}
                 rx="1"
-                fill="#09090B"
+                fill="currentColor"
+                className="text-zinc-900 dark:text-black"
             />
 
             {/* Port Clusters (Groups of 8) */}
@@ -144,7 +145,8 @@ function ServerFaceplate({ uHeight }: { uHeight: number }) {
                         width="20"
                         height={pxHeight - 12}
                         rx="1"
-                        fill="#1F2937"
+                        fill="currentColor"
+                        className="text-zinc-700 dark:text-zinc-800"
                     />
                     <rect
                         x="2"
@@ -205,7 +207,8 @@ function GenericFaceplate({ uHeight }: { uHeight: number }) {
             width="240"
             height="2"
             rx="1"
-            fill="#27272A"
+            fill="currentColor"
+            className="text-zinc-400 dark:text-zinc-700"
         />
     );
 }

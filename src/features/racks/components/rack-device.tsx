@@ -2,6 +2,7 @@ import { GripVertical } from 'lucide-react';
 import type { Device } from '#/types/schema';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { cn } from '#/lib/utils';
 import { DeviceFaceplate } from './device-faceplate';
 
 interface RackDeviceProps {
@@ -25,7 +26,7 @@ export function RackDevice({ device, rackCapacity, onEdit }: RackDeviceProps) {
 
     const style = {
         top: `${top}px`,
-        height: `${height - 1}px`, // Pixel-perfect fit
+        height: `${height}px`, // Pixel-perfect fit
         transform: CSS.Translate.toString(transform),
         opacity: isDragging ? 0.6 : 1,
         zIndex: isDragging ? 50 : 10,
@@ -39,32 +40,36 @@ export function RackDevice({ device, rackCapacity, onEdit }: RackDeviceProps) {
     };
 
     return (
-        <div
+        <button
             ref={setNodeRef}
             style={style}
             {...attributes}
             {...listeners}
-            onClick={() => !isDragging && onEdit?.(device)}
-            onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    if (!isDragging) onEdit?.(device);
-                }
+            onClick={(e) => {
+                e.stopPropagation();
+                if (!isDragging) onEdit?.(device);
             }}
-            role="button"
-            tabIndex={0}
+            type="button"
             aria-label={`Edit ${device.name}`}
-            className={`absolute left-0 right-0 group transition-all duration-100 active:cursor-grabbing cursor-grab flex items-center shadow-lg rounded-sm overflow-hidden border border-white/10 hover:border-white/40`}
+            className={cn(
+                'absolute left-0 right-0 group transition-all duration-100 active:cursor-grabbing cursor-grab flex items-center shadow-lg rounded-sm overflow-hidden border border-white/10 hover:border-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer',
+            )}
         >
             {/* The High-Fidelity faceplate */}
             <DeviceFaceplate device={device} isDragging={isDragging} />
 
             {/* Label Overlay (shows on hover or if space exists) */}
             <div
-                className={`absolute inset-0 pointer-events-none flex items-center justify-between px-10 transition-opacity ${isDragging ? 'opacity-0' : 'group-hover:opacity-100 opacity-90'}`}
+                className={cn(
+                    'absolute inset-0 pointer-events-none flex items-center justify-between px-10 transition-opacity',
+                    isDragging ? 'opacity-0' : 'group-hover:opacity-100 opacity-90',
+                )}
             >
                 <span
-                    className={`text-[10px] font-black uppercase tracking-tighter truncate max-w-35 drop-shadow-sm ${typeColors[device.type] || 'text-(--sea-ink)'}`}
+                    className={cn(
+                        'text-[10px] font-black uppercase tracking-tighter truncate max-w-35 drop-shadow-sm',
+                        typeColors[device.type] || 'text-(--sea-ink)',
+                    )}
                 >
                     {device.name}
                 </span>
@@ -79,6 +84,6 @@ export function RackDevice({ device, rackCapacity, onEdit }: RackDeviceProps) {
                     <GripVertical size={10} className="text-zinc-500/40" />
                 </div>
             )}
-        </div>
+        </button>
     );
 }

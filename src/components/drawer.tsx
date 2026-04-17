@@ -23,24 +23,24 @@ export function Drawer({ isOpen, onClose, title, children }: DrawerProps) {
             />
 
             {/* Drawer Content */}
-            <div className="relative w-full max-w-md h-full bg-(--sea-ink) border-l border-white/10 shadow-2xl transition-transform duration-300 transform translate-x-0">
+            <div className="relative w-full max-w-md h-full bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-white/10 shadow-2xl transition-transform duration-300 transform translate-x-0">
                 <div className="flex flex-col h-full">
                     {/* Header */}
-                    <div className="flex items-center justify-between p-6 border-b border-white/10">
-                        <h2 className="text-xl font-semibold text-white">
+                    <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-white/10">
+                        <h2 className="text-xl font-black text-(--sea-ink) tracking-tight">
                             {title}
                         </h2>
                         <button
                             type="button"
                             onClick={onClose}
-                            className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                            className="p-2 text-(--sea-ink-soft) hover:text-(--sea-ink) hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
                         >
                             <X size={20} />
                         </button>
                     </div>
 
                     {/* Body */}
-                    <div className="flex-1 overflow-y-auto p-6 text-white/80">
+                    <div className="flex-1 overflow-y-auto p-6 text-(--sea-ink-soft)">
                         {children}
                     </div>
                 </div>

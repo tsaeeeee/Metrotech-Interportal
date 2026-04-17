@@ -9,10 +9,10 @@ interface BreadcrumbNavProps {
 
 export function BreadcrumbNav({ datacenter, floor, rack }: BreadcrumbNavProps) {
     return (
-        <nav className="flex items-center gap-2 mb-6 text-sm font-medium">
+        <nav className="flex items-center gap-2 text-sm font-medium">
             <Link
                 to="/"
-                className="flex items-center gap-1.5 p-1 rounded-md text-(--sea-ink-soft) hover:text-(--sea-ink) hover:bg-zinc-100 transition-colors"
+                className="flex items-center gap-1.5 p-1 rounded-md text-(--sea-ink-soft) hover:text-(--sea-ink) hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             >
                 <Home size={16} />
                 <span>Dashboard</span>
