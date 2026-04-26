@@ -1,8 +1,8 @@
-import { GripVertical } from 'lucide-react';
-import type { Device } from '#/types/schema';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
 import { cn } from '#/lib/utils';
+import type { Device } from '#/types/schema';
 import { DeviceFaceplate } from './device-faceplate';
 
 interface RackDeviceProps {
@@ -62,7 +62,9 @@ export function RackDevice({ device, rackCapacity, onEdit }: RackDeviceProps) {
             <div
                 className={cn(
                     'absolute inset-0 pointer-events-none flex items-center justify-between px-10 transition-opacity',
-                    isDragging ? 'opacity-0' : 'group-hover:opacity-100 opacity-90',
+                    isDragging
+                        ? 'opacity-0'
+                        : 'group-hover:opacity-100 opacity-90',
                 )}
             >
                 <span

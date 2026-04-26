@@ -1,5 +1,5 @@
-import type { Connection, Device } from '#/types/schema';
 import { useMemo } from 'react';
+import type { Connection, Device } from '#/types/schema';
 
 interface CableOverlayProps {
     devices: Device[];

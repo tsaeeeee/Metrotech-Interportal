@@ -1,8 +1,8 @@
-import type { Device, Connection } from '#/types/schema';
-import { RackDevice } from './rack-device.tsx';
-import { CableOverlay } from '#/features/connectivity/components/cable-overlay';
 import { useDroppable } from '@dnd-kit/core';
+import { CableOverlay } from '#/features/connectivity/components/cable-overlay';
 import { cn } from '#/lib/utils';
+import type { Connection, Device } from '#/types/schema';
+import { RackDevice } from './rack-device.tsx';
 
 interface RackUGridProps {
     uCapacity: number;

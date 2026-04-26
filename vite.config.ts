@@ -6,20 +6,18 @@ import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
-  plugins: [
-    devtools(),
-    tsconfigPaths({ projects: ['./tsconfig.json'] }),
-    tailwindcss(),
-    tanstackStart(),
-    viteReact(),
-  ],
-  server: {
-    host: true, // 🔥 INI PENTING BANGET
-    allowedHosts: [
-      'unblushing-ewa-superseraphical.ngrok-free.dev'
+    plugins: [
+        devtools(),
+        tsconfigPaths({ projects: ['./tsconfig.json'] }),
+        tailwindcss(),
+        tanstackStart(),
+        viteReact(),
     ],
-    watch: {
-      ignored: ['**/data/**'],
+    server: {
+        host: true, // 🔥 INI PENTING BANGET
+        allowedHosts: ['unblushing-ewa-superseraphical.ngrok-free.dev'],
+        watch: {
+            ignored: ['**/data/**'],
+        },
     },
-  },
 });

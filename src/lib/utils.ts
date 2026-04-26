@@ -1,20 +1,9 @@
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
 /**
- * Simple conditional class merger utility for Metrotech Interportal.
- * Similar to clsx but with no dependencies.
+ * Utility to merge Tailwind classes safely using clsx and tailwind-merge.
  */
-export function cn(...inputs: any[]): string {
-    return inputs
-        .flat()
-        .filter(Boolean)
-        .map((input) => {
-            if (typeof input === 'string') return input;
-            if (typeof input === 'object') {
-                return Object.entries(input)
-                    .filter(([_, value]) => Boolean(value))
-                    .map(([key]) => key)
-                    .join(' ');
-            }
-            return '';
-        })
-        .join(' ');
+export function cn(...inputs: ClassValue[]): string {
+    return twMerge(clsx(inputs));
 }

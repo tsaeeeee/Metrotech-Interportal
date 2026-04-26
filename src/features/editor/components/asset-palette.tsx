@@ -1,9 +1,9 @@
-import { GripVertical, Edit3, Copy, Trash2, PlusCircle } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { Copy, Edit3, GripVertical, PlusCircle, Trash2 } from 'lucide-react';
 import { cn } from '#/lib/utils';
-import { DeviceFaceplate } from '../../racks/components/device-faceplate';
 import type { Device } from '#/types/schema';
+import { DeviceFaceplate } from '../../racks/components/device-faceplate';
 
 interface AssetTrayProps {
     inventory: Device[];

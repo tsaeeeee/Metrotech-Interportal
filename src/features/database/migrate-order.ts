@@ -9,16 +9,18 @@ async function migrate() {
 
     db.floors = db.floors.map((f, i) => ({
         ...f,
-        order: f.order ?? (i + 1)
+        order: f.order ?? i + 1,
     }));
 
     db.racks = db.racks.map((r, i) => ({
         ...r,
-        order: r.order ?? (i + 1)
+        order: r.order ?? i + 1,
     }));
 
     await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
-    console.log('Migration complete: All floors and racks now have an order property.');
+    console.log(
+        'Migration complete: All floors and racks now have an order property.',
+    );
 }
 
 migrate().catch(console.error);

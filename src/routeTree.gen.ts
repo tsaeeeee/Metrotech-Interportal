@@ -9,48 +9,104 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as AboutRouteImport } from './routes/about'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProtectedRouteImport } from './routes/_protected'
+import { Route as ProtectedIndexRouteImport } from './routes/_protected/index'
+import { Route as ProtectedDcDcIdRouteImport } from './routes/_protected/dc/$dcId'
 
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
+const ProtectedRoute = ProtectedRouteImport.update({
+  id: '/_protected',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProtectedIndexRoute = ProtectedIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ProtectedRoute,
+} as any)
+const ProtectedDcDcIdRoute = ProtectedDcDcIdRouteImport.update({
+  id: '/dc/$dcId',
+  path: '/dc/$dcId',
+  getParentRoute: () => ProtectedRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof ProtectedIndexRoute
   '/about': typeof AboutRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/dc/$dcId': typeof ProtectedDcDcIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/': typeof ProtectedIndexRoute
+  '/dc/$dcId': typeof ProtectedDcDcIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_protected': typeof ProtectedRouteWithChildren
   '/about': typeof AboutRoute
+  '/login': typeof LoginRoute
+  '/signup': typeof SignupRoute
+  '/_protected/': typeof ProtectedIndexRoute
+  '/_protected/dc/$dcId': typeof ProtectedDcDcIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about'
+  fullPaths: '/' | '/about' | '/login' | '/signup' | '/dc/$dcId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about'
-  id: '__root__' | '/' | '/about'
+  to: '/about' | '/login' | '/signup' | '/' | '/dc/$dcId'
+  id:
+    | '__root__'
+    | '/_protected'
+    | '/about'
+    | '/login'
+    | '/signup'
+    | '/_protected/'
+    | '/_protected/dc/$dcId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  ProtectedRoute: typeof ProtectedRouteWithChildren
   AboutRoute: typeof AboutRoute
+  LoginRoute: typeof LoginRoute
+  SignupRoute: typeof SignupRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/about': {
       id: '/about'
       path: '/about'
@@ -58,19 +114,49 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
+    '/_protected': {
+      id: '/_protected'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof ProtectedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_protected/': {
+      id: '/_protected/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ProtectedIndexRouteImport
+      parentRoute: typeof ProtectedRoute
+    }
+    '/_protected/dc/$dcId': {
+      id: '/_protected/dc/$dcId'
+      path: '/dc/$dcId'
+      fullPath: '/dc/$dcId'
+      preLoaderRoute: typeof ProtectedDcDcIdRouteImport
+      parentRoute: typeof ProtectedRoute
     }
   }
 }
 
+interface ProtectedRouteChildren {
+  ProtectedIndexRoute: typeof ProtectedIndexRoute
+  ProtectedDcDcIdRoute: typeof ProtectedDcDcIdRoute
+}
+
+const ProtectedRouteChildren: ProtectedRouteChildren = {
+  ProtectedIndexRoute: ProtectedIndexRoute,
+  ProtectedDcDcIdRoute: ProtectedDcDcIdRoute,
+}
+
+const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(
+  ProtectedRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  ProtectedRoute: ProtectedRouteWithChildren,
   AboutRoute: AboutRoute,
+  LoginRoute: LoginRoute,
+  SignupRoute: SignupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

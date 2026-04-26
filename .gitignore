@@ -18,3 +18,10 @@ openspec/
 
 # Legacy Project Files
 .old/
+
+# Databases and local data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+data/*.json
+data/*.sqlite*

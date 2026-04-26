@@ -1,5 +1,5 @@
-import type { Device, Port } from '#/types/schema';
 import { cn } from '#/lib/utils';
+import type { Device, Port } from '#/types/schema';
 
 interface PortFaceplateProps {
     device: Device;

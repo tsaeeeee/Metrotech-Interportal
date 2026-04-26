@@ -1,28 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useServerFn } from '@tanstack/react-start';
 import {
-    Save,
-    Trash2,
-    Info,
     Cable,
-    Zap,
-    Server,
-    Network,
     Database,
-    Cpu,
+    Info,
     Layout,
+    Network,
+    Save,
+    Server,
+    Trash2,
+    Zap,
 } from 'lucide-react';
-import type { Device, Connection, Port } from '#/types/schema';
+import { useEffect, useState } from 'react';
+import { PortFaceplate } from '#/features/connectivity/components/port-faceplate';
 import {
-    upsertDevice,
-    deleteDevice,
     connectPorts,
-    disconnectPorts,
-    upsertInventoryAsset,
+    deleteDevice,
     deleteInventoryAsset,
+    disconnectPorts,
+    upsertDevice,
+    upsertInventoryAsset,
 } from '#/features/database/database-service';
 import { cn } from '#/lib/utils';
-import { PortFaceplate } from '#/features/connectivity/components/port-faceplate';
-import { useServerFn } from '@tanstack/react-start';
+import type { Connection, Device, Port } from '#/types/schema';
 
 interface AssetFormProps {
     mode?: 'inventory' | 'rack';
@@ -120,7 +119,7 @@ export function AssetForm({
         setFormData((prev) => ({
             ...prev,
             name: preset.name,
-            type: preset.type as any,
+            type: preset.type as Device['type'],
             uHeight: preset.uHeight,
             ports: dummyPorts,
         }));
@@ -129,7 +128,7 @@ export function AssetForm({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        let result;
+        let result: { success: boolean; device?: Device; asset?: Device };
         if (mode === 'inventory') {
             result = await upsertInventoryFn({ data: formData as Device });
         } else {
@@ -137,20 +136,23 @@ export function AssetForm({
         }
 
         if (result.success) {
-            onSave(result.device || (result as any).asset);
+            const savedDevice = result.device || result.asset;
+            if (savedDevice) onSave(savedDevice);
         }
     };
 
     const handleDelete = async () => {
         if (!device?.id) return;
-        const msg = mode === 'inventory' 
-            ? 'Are you sure you want to delete this master blueprint? This will not affect existing rack instances.'
-            : 'Are you sure you want to delete this asset from the rack?';
+        const msg =
+            mode === 'inventory'
+                ? 'Are you sure you want to delete this master blueprint? This will not affect existing rack instances.'
+                : 'Are you sure you want to delete this asset from the rack?';
 
         if (confirm(msg)) {
-            const result = mode === 'inventory'
-                ? await deleteInventoryAsset({ data: device.id })
-                : await deleteDevice({ data: device.id });
+            const result =
+                mode === 'inventory'
+                    ? await deleteInventoryAsset({ data: device.id })
+                    : await deleteDevice({ data: device.id });
 
             if (result.success) {
                 onDelete(device.id);
@@ -207,9 +209,9 @@ export function AssetForm({
             {/* Template Selector Bar (Visual Preset Bar) */}
             {!device && (
                 <div className="space-y-3">
-                    <label className="text-[10px] font-bold text-(--sea-ink-soft) opacity-60 uppercase tracking-widest pl-1 leading-none">
+                    <span className="text-[10px] font-bold text-(--sea-ink-soft) opacity-60 uppercase tracking-widest pl-1 leading-none">
                         Starting Point
-                    </label>
+                    </span>
                     <div className="grid grid-cols-4 gap-2">
                         {BASE_PRESETS.map((preset) => (
                             <button
@@ -246,7 +248,7 @@ export function AssetForm({
             )}
 
             {/* Tabs */}
-                <div className="flex bg-black/5 dark:bg-black/40 p-1 rounded-xl border border-black/10 dark:border-white/5">
+            <div className="flex bg-black/5 dark:bg-black/40 p-1 rounded-xl border border-black/10 dark:border-white/5">
                 <button
                     type="button"
                     onClick={() => setActiveTab('info')}
@@ -475,7 +477,7 @@ export function AssetForm({
                         <button
                             type="submit"
                             className={cn(
-                                "w-full bg-(--sea-teal) hover:bg-(--sea-aqua) text-(--sea-ink) font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
+                                'w-full bg-(--sea-teal) hover:bg-(--sea-aqua) text-(--sea-ink) font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer',
                             )}
                         >
                             <Save size={18} />
@@ -495,7 +497,9 @@ export function AssetForm({
                                 title="Delete Asset"
                             >
                                 <Trash2 size={16} />
-                                <span className="text-xs uppercase tracking-wider">Delete Asset</span>
+                                <span className="text-xs uppercase tracking-wider">
+                                    Delete Asset
+                                </span>
                             </button>
                         )}
                     </div>
@@ -504,8 +508,8 @@ export function AssetForm({
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 overflow-hidden">
                     <div className="space-y-4">
                         <h4 className="text-xs font-bold text-(--sea-ink-soft) opacity-60 uppercase tracking-widest flex items-center gap-2">
-                             Port Interface Preview
-                         </h4>
+                            Port Interface Preview
+                        </h4>
                         <PortFaceplate
                             device={formData}
                             onPortClick={
@@ -535,10 +539,10 @@ export function AssetForm({
                             </h4>
                             <div className="space-y-2">
                                 {connections.map((conn) => {
-                                    const isPortA = device!.ports.some(
+                                    const isPortA = device?.ports.some(
                                         (p) => p.id === conn.portAId,
                                     );
-                                    const localPort = device!.ports.find(
+                                    const localPort = device?.ports.find(
                                         (p) =>
                                             p.id ===
                                             (isPortA
@@ -605,17 +609,17 @@ export function AssetForm({
                         <div className="p-4 bg-(--sea-teal)/10 rounded-xl border border-(--sea-teal)/20 space-y-3 animate-in fade-in slide-in-from-bottom-2">
                             <div className="text-[10px] font-bold text-(--sea-teal) uppercase tracking-wider flex items-center justify-between">
                                 <span>PATCHING: {isPatching.name}</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsPatching(null)}
-                                        className="text-(--sea-ink-soft) opacity-60 hover:text-(--sea-ink) hover:opacity-100 transition-all cursor-pointer"
-                                    >
-                                        Cancel
-                                    </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPatching(null)}
+                                    className="text-(--sea-ink-soft) opacity-60 hover:text-(--sea-ink) hover:opacity-100 transition-all cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
                             </div>
                             <div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar pr-2">
                                 {allDevices
-                                    .filter((d) => d.id !== device!.id)
+                                    .filter((d) => d.id !== device?.id)
                                     .map((d) => (
                                         <div key={d.id} className="space-y-2">
                                             <div className="text-[9px] uppercase tracking-widest text-(--sea-ink-soft) opacity-40 font-bold border-b border-black/5 dark:border-white/5 pb-1">

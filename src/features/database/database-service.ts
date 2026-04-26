@@ -2,36 +2,70 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createServerFn } from '@tanstack/react-start';
 import type {
-    Database,
-    Floor,
-    Room,
-    Device,
-    Rack,
     Connection,
+    Database,
+    Device,
+    Floor,
+    Rack,
+    Room,
 } from '#/types/schema';
+import { getSession } from '../auth/auth-service';
+import { getDb as getSqliteDb } from '../auth/sqlite';
 
 const DB_PATH = path.resolve(process.cwd(), 'data/db.json');
+
+let cachedDb: Database | null = null;
+
+async function requireAuth() {
+    const session = await getSession();
+    if (!session) throw new Error('Unauthorized');
+    return session;
+}
 
 /**
  * Low-level helper to read the JSON database.
  */
 async function readDb(): Promise<Database> {
+    if (cachedDb) return cachedDb;
     try {
+        try {
+            await fs.access(DB_PATH);
+        } catch {
+            // File doesn't exist, return empty structure
+            const emptyDb: Database = {
+                floors: [],
+                rooms: [],
+                racks: [],
+                devices: [],
+                connections: [],
+                inventory: [],
+            };
+            await writeDb(emptyDb);
+            return emptyDb;
+        }
+
         const data = await fs.readFile(DB_PATH, 'utf-8');
         const db = JSON.parse(data);
-        // Ensure inventory exists
+
+        // Ensure arrays exist
+        if (!db.floors) db.floors = [];
+        if (!db.rooms) db.rooms = [];
+        if (!db.racks) db.racks = [];
+        if (!db.devices) db.devices = [];
+        if (!db.connections) db.connections = [];
         if (!db.inventory) db.inventory = [];
 
         // Automatic migration for 'order' property
-        db.rooms = (db.rooms || []).map((r: Room, i: number) => ({
+        db.rooms = db.rooms.map((r: Room, i: number) => ({
             ...r,
-            order: r.order ?? (i + 1)
+            order: r.order ?? i + 1,
         }));
-        db.racks = (db.racks || []).map((r: Rack, i: number) => ({
+        db.racks = db.racks.map((r: Rack, i: number) => ({
             ...r,
-            order: r.order ?? (i + 1)
+            order: r.order ?? i + 1,
         }));
 
+        cachedDb = db;
         return db;
     } catch (error) {
         console.error('Error reading DB:', error);
@@ -43,6 +77,7 @@ async function readDb(): Promise<Database> {
  * Low-level helper to write to the JSON database.
  */
 async function writeDb(data: Database): Promise<void> {
+    cachedDb = data;
     try {
         await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
     } catch (error) {
@@ -57,7 +92,21 @@ async function writeDb(data: Database): Promise<void> {
 export const getFloors = createServerFn({ method: 'GET' }).handler(
     async (): Promise<Floor[]> => {
         const db = await readDb();
-        return db.floors;
+        const sqlite = getSqliteDb();
+        
+        // Map SQLite Datacenters to Floors
+        const dcs = sqlite.prepare('SELECT id, name, code FROM datacenters').all() as { id: string; name: string; code: string }[];
+        const dynamicFloors = dcs.map(dc => ({
+            id: dc.code,
+            name: dc.name
+        }));
+        
+        // Merge with existing floors
+        const combined = [...dynamicFloors];
+        for (const f of (db.floors || [])) {
+            if (!combined.find(df => df.id === f.id)) combined.push(f);
+        }
+        return combined;
     },
 );
 
@@ -105,15 +154,20 @@ export const getFullRackContext = createServerFn({ method: 'GET' }).handler(
         const room = db.rooms.find((r) => r.id === rack.roomId);
         if (!room) throw new Error('Room not found');
 
-        const floor = db.floors.find(
-            (f) => f.id === room.floorId,
-        );
+        let floor = db.floors.find((f) => f.id === room.floorId);
+        if (!floor) {
+            const sqlite = getSqliteDb();
+            const dcs = sqlite.prepare('SELECT id, name, code FROM datacenters').all() as { id: string; name: string; code: string }[];
+            floor = dcs.map(dc => ({ id: dc.code, name: dc.name })).find(df => df.id === room.floorId);
+        }
         if (!floor) throw new Error('Floor not found');
 
         const devices = db.devices.filter((d) => rack.devices.includes(d.id));
 
         // Phase 3: Get connections involving these devices
-        const portIds = devices.flatMap((d) => (d.ports || []).map((p) => p.id));
+        const portIds = devices.flatMap((d) =>
+            (d.ports || []).map((p) => p.id),
+        );
         const connections = db.connections.filter(
             (c) => portIds.includes(c.portAId) || portIds.includes(c.portBId),
         );
@@ -141,9 +195,12 @@ export const getFullRoomContext = createServerFn({ method: 'GET' }).handler(
         const room = db.rooms.find((r) => r.id === roomId);
         if (!room) throw new Error('Room not found');
 
-        const floor = db.floors.find(
-            (f) => f.id === room.floorId,
-        );
+        let floor = db.floors.find((f) => f.id === room.floorId);
+        if (!floor) {
+            const sqlite = getSqliteDb();
+            const dcs = sqlite.prepare('SELECT id, name, code FROM datacenters').all() as { id: string; name: string; code: string }[];
+            floor = dcs.map(dc => ({ id: dc.code, name: dc.name })).find(df => df.id === room.floorId);
+        }
         if (!floor) throw new Error('Floor not found');
 
         const racks = db.racks.filter((r) => r.roomId === roomId);
@@ -151,7 +208,9 @@ export const getFullRoomContext = createServerFn({ method: 'GET' }).handler(
         const allDevices = db.devices.filter((d) => deviceIds.includes(d.id));
 
         // Phase 3: Get all connections on this room
-        const portIds = allDevices.flatMap((d) => (d.ports || []).map((p) => p.id));
+        const portIds = allDevices.flatMap((d) =>
+            (d.ports || []).map((p) => p.id),
+        );
         const connections = db.connections.filter(
             (c) => portIds.includes(c.portAId) || portIds.includes(c.portBId),
         );
@@ -165,6 +224,7 @@ export const getFullRoomContext = createServerFn({ method: 'GET' }).handler(
  */
 export const updateRackDevices = createServerFn({ method: 'POST' }).handler(
     async (ctx: unknown): Promise<{ success: boolean }> => {
+        await requireAuth();
         const { data } = ctx as { data: { rackId: string; devices: Device[] } };
         const { rackId, devices } = data;
         const db = await readDb();
@@ -186,7 +246,8 @@ export const updateRackDevices = createServerFn({ method: 'POST' }).handler(
  * Single function to Add or Update a device.
  */
 export const upsertDevice = createServerFn({ method: 'POST' }).handler(
-    async (ctx: any): Promise<{ success: boolean; device: Device }> => {
+    async (ctx: { data: Device }): Promise<{ success: boolean; device: Device }> => {
+        await requireAuth();
         const { data: device } = ctx;
         const db = await readDb();
 
@@ -212,7 +273,8 @@ export const upsertDevice = createServerFn({ method: 'POST' }).handler(
  * Removes a device from the database and its parent rack.
  */
 export const deleteDevice = createServerFn({ method: 'POST' }).handler(
-    async (ctx: any): Promise<{ success: boolean }> => {
+    async (ctx: { data: string }): Promise<{ success: boolean }> => {
+        await requireAuth();
         const { data: deviceId } = ctx;
         const db = await readDb();
 
@@ -241,7 +303,10 @@ export const deleteDevice = createServerFn({ method: 'POST' }).handler(
  * Updates a rack's (X, Y) position on the room grid.
  */
 export const updateRackPosition = createServerFn({ method: 'POST' }).handler(
-    async (ctx: { data: { id: string; x: number; y: number } }): Promise<{ success: boolean }> => {
+    async (ctx: {
+        data: { id: string; x: number; y: number };
+    }): Promise<{ success: boolean }> => {
+        await requireAuth();
         const { id, x, y } = ctx.data;
         const db = await readDb();
 
@@ -263,6 +328,7 @@ export const connectPorts = createServerFn({ method: 'POST' }).handler(
     async (ctx: {
         data: { portAId: string; portBId: string; type: string };
     }): Promise<{ success: boolean; connection: Connection }> => {
+        await requireAuth();
         const { data } = ctx;
         const db = await readDb();
 
@@ -307,6 +373,7 @@ export const connectPorts = createServerFn({ method: 'POST' }).handler(
  */
 export const disconnectPorts = createServerFn({ method: 'POST' }).handler(
     async (ctx: { data: string }): Promise<{ success: boolean }> => {
+        await requireAuth();
         const { data: connectionId } = ctx;
         const db = await readDb();
 
@@ -349,6 +416,7 @@ export const upsertInventoryAsset = createServerFn({ method: 'POST' }).handler(
     async (ctx: {
         data: Device;
     }): Promise<{ success: boolean; device: Device }> => {
+        await requireAuth();
         const { data: asset } = ctx;
         const db = await readDb();
 
@@ -371,6 +439,7 @@ export const upsertInventoryAsset = createServerFn({ method: 'POST' }).handler(
  */
 export const deleteInventoryAsset = createServerFn({ method: 'POST' }).handler(
     async (ctx: { data: string }): Promise<{ success: boolean }> => {
+        await requireAuth();
         const { data: assetId } = ctx;
         const db = await readDb();
 
@@ -390,6 +459,7 @@ export const duplicateInventoryAsset = createServerFn({
     async (ctx: {
         data: string;
     }): Promise<{ success: boolean; device: Device }> => {
+        await requireAuth();
         const { data: assetId } = ctx;
         const db = await readDb();
 
@@ -416,16 +486,21 @@ export const createRoom = createServerFn({ method: 'POST' }).handler(
     async (ctx: {
         data: { name: string; floorId: string; width: number; height: number };
     }): Promise<{ success: boolean; room: Room }> => {
+        await requireAuth();
         const { data } = ctx;
         const db = await readDb();
+        const crypto = await import('node:crypto');
 
         const newRoom: Room = {
-            id: `rm-${Date.now()}`,
+            id: `rm-${crypto.randomUUID()}`,
             name: data.name,
             floorId: data.floorId,
             width: data.width,
             height: data.height,
-            order: (db.rooms.length > 0 ? Math.max(...db.rooms.map(r => r.order || 0)) : 0) + 1,
+            order:
+                (db.rooms.length > 0
+                    ? Math.max(...db.rooms.map((r) => r.order || 0))
+                    : 0) + 1,
         };
 
         db.rooms.push(newRoom);
@@ -439,22 +514,35 @@ export const createRoom = createServerFn({ method: 'POST' }).handler(
  */
 export const createRack = createServerFn({ method: 'POST' }).handler(
     async (ctx: {
-        data: { name: string; roomId: string; uCapacity: number; x: number; y: number };
+        data: {
+            name: string;
+            roomId: string;
+            uCapacity: number;
+            x: number;
+            y: number;
+        };
     }): Promise<{ success: boolean; rack: Rack }> => {
+        await requireAuth();
         const { data } = ctx;
         const db = await readDb();
+        const crypto = await import('node:crypto');
 
         const newRack: Rack = {
-            id: `rk-${Date.now()}`,
+            id: `rk-${crypto.randomUUID()}`,
             name: data.name,
             roomId: data.roomId,
             uCapacity: data.uCapacity,
             devices: [],
             x: data.x,
             y: data.y,
-            order: (db.racks.filter(r => r.roomId === data.roomId).length > 0 
-                ? Math.max(...db.racks.filter(r => r.roomId === data.roomId).map(r => r.order || 0)) 
-                : 0) + 1,
+            order:
+                (db.racks.filter((r) => r.roomId === data.roomId).length > 0
+                    ? Math.max(
+                          ...db.racks
+                              .filter((r) => r.roomId === data.roomId)
+                              .map((r) => r.order || 0),
+                      )
+                    : 0) + 1,
         };
 
         db.racks.push(newRack);
@@ -475,10 +563,29 @@ export const getInfrastructureSummary = createServerFn({
         racks: Rack[];
     }> => {
         const db = await readDb();
+        const sqlite = getSqliteDb();
+        
+        // Map SQLite Datacenters to Floors
+        const dcs = sqlite.prepare('SELECT id, name, code FROM datacenters').all() as { id: string; name: string; code: string }[];
+        const dynamicFloors = dcs.map(dc => ({
+            id: dc.code,
+            name: dc.name
+        }));
+        
+        // Merge with existing floors
+        const combined = [...dynamicFloors];
+        for (const f of (db.floors || [])) {
+            if (!combined.find(df => df.id === f.id)) combined.push(f);
+        }
+
         return {
-            floors: db.floors || [],
-            rooms: (db.rooms || []).sort((a, b) => (a.order || 0) - (b.order || 0)),
-            racks: (db.racks || []).sort((a, b) => (a.order || 0) - (b.order || 0)),
+            floors: combined,
+            rooms: (db.rooms || []).sort(
+                (a, b) => (a.order || 0) - (b.order || 0),
+            ),
+            racks: (db.racks || []).sort(
+                (a, b) => (a.order || 0) - (b.order || 0),
+            ),
         };
     },
 );
@@ -487,7 +594,10 @@ export const getInfrastructureSummary = createServerFn({
  * Updates a Room's properties.
  */
 export const updateRoom = createServerFn({ method: 'POST' }).handler(
-    async (ctx: { data: { id: string; name: string } }): Promise<{ success: boolean }> => {
+    async (ctx: {
+        data: { id: string; name: string };
+    }): Promise<{ success: boolean }> => {
+        await requireAuth();
         const { data } = ctx;
         const db = await readDb();
         const room = db.rooms.find((r) => r.id === data.id);
@@ -503,12 +613,13 @@ export const updateRoom = createServerFn({ method: 'POST' }).handler(
  */
 export const deleteRoom = createServerFn({ method: 'POST' }).handler(
     async (ctx: { data: string }): Promise<{ success: boolean }> => {
+        await requireAuth();
         const { data: roomId } = ctx;
         const db = await readDb();
 
         // 1. Find all racks in this room
         const roomRacks = db.racks.filter((r) => r.roomId === roomId);
-        const rackIds = roomRacks.map((r) => r.id);
+        const _rackIds = roomRacks.map((r) => r.id);
 
         // 2. Find all devices in those racks
         const deviceIds = roomRacks.flatMap((r) => r.devices);
@@ -517,9 +628,11 @@ export const deleteRoom = createServerFn({ method: 'POST' }).handler(
         const devicePorts = db.devices
             .filter((d) => deviceIds.includes(d.id))
             .flatMap((d) => (d.ports || []).map((p) => p.id));
-        
+
         db.connections = db.connections.filter(
-            (c) => !devicePorts.includes(c.portAId) && !devicePorts.includes(c.portBId)
+            (c) =>
+                !devicePorts.includes(c.portAId) &&
+                !devicePorts.includes(c.portBId),
         );
 
         // 4. Remove devices, racks, and room
@@ -536,7 +649,10 @@ export const deleteRoom = createServerFn({ method: 'POST' }).handler(
  * Updates a Rack's properties (Name, Capacity).
  */
 export const updateRack = createServerFn({ method: 'POST' }).handler(
-    async (ctx: { data: { id: string; name: string; uCapacity: number } }): Promise<{ success: boolean }> => {
+    async (ctx: {
+        data: { id: string; name: string; uCapacity: number };
+    }): Promise<{ success: boolean }> => {
+        await requireAuth();
         const { data } = ctx;
         const db = await readDb();
         const rack = db.racks.find((r) => r.id === data.id);
@@ -553,6 +669,7 @@ export const updateRack = createServerFn({ method: 'POST' }).handler(
  */
 export const deleteRack = createServerFn({ method: 'POST' }).handler(
     async (ctx: { data: string }): Promise<{ success: boolean }> => {
+        await requireAuth();
         const { data: rackId } = ctx;
         const db = await readDb();
 
@@ -565,9 +682,11 @@ export const deleteRack = createServerFn({ method: 'POST' }).handler(
         const devicePorts = db.devices
             .filter((d) => deviceIds.includes(d.id))
             .flatMap((d) => (d.ports || []).map((p) => p.id));
-        
+
         db.connections = db.connections.filter(
-            (c) => !devicePorts.includes(c.portAId) && !devicePorts.includes(c.portBId)
+            (c) =>
+                !devicePorts.includes(c.portAId) &&
+                !devicePorts.includes(c.portBId),
         );
 
         db.devices = db.devices.filter((d) => !deviceIds.includes(d.id));
@@ -582,18 +701,24 @@ export const deleteRack = createServerFn({ method: 'POST' }).handler(
  * Updates the order of rooms or racks.
  */
 export const updateEntityOrder = createServerFn({ method: 'POST' }).handler(
-    async (ctx: { data: { type: 'room' | 'rack'; orders: { id: string; order: number }[] } }): Promise<{ success: boolean }> => {
+    async (ctx: {
+        data: {
+            type: 'room' | 'rack';
+            orders: { id: string; order: number }[];
+        };
+    }): Promise<{ success: boolean }> => {
+        await requireAuth();
         const { type, orders } = ctx.data;
         const db = await readDb();
 
         if (type === 'room') {
             orders.forEach(({ id, order }) => {
-                const room = db.rooms.find(r => r.id === id);
+                const room = db.rooms.find((r) => r.id === id);
                 if (room) room.order = order;
             });
         } else {
             orders.forEach(({ id, order }) => {
-                const rack = db.racks.find(r => r.id === id);
+                const rack = db.racks.find((r) => r.id === id);
                 if (rack) rack.order = order;
             });
         }

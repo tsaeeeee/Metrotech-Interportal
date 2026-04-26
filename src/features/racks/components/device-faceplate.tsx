@@ -1,5 +1,5 @@
-import type { Device } from '#/types/schema';
 import { useMemo } from 'react';
+import type { Device } from '#/types/schema';
 
 interface DeviceFaceplateProps {
     device: Device;
@@ -35,7 +35,13 @@ export function DeviceFaceplate({ device, isDragging }: DeviceFaceplateProps) {
         >
             <title>{`${device.type} faceplate for ${device.name}`}</title>
             {/* Base Chassis */}
-            <rect width="320" height={pxHeight} rx="2" fill="currentColor" className="text-zinc-900 dark:text-zinc-950" />
+            <rect
+                width="320"
+                height={pxHeight}
+                rx="2"
+                fill="currentColor"
+                className="text-zinc-900 dark:text-zinc-950"
+            />
             <rect
                 x="0.5"
                 y="0.5"
@@ -79,7 +85,8 @@ function NetworkFaceplate({ uHeight }: { uHeight: number }) {
                     {/* Render a block of ports */}
                     {Array.from({ length: 12 }).map((_, j) => (
                         <rect
-                            key={`port-${x}-${j}`}
+                            // biome-ignore lint/suspicious/noArrayIndexKey: decorative
+                            key={`port-${x}-${(j % 6) * 8}-${Math.floor(j / 6) * 6}`}
                             x={(j % 6) * 8}
                             y={Math.floor(j / 6) * 6}
                             width="6"
@@ -184,7 +191,8 @@ function PDUFaceplate({ uHeight }: { uHeight: number }) {
             {/* Outlets */}
             {Array.from({ length: 12 }).map((_, i) => (
                 <rect
-                    key={`outlet-${i}`}
+                    // biome-ignore lint/suspicious/noArrayIndexKey: decorative
+                    key={`outlet-${25 + i * 22}`}
                     x={25 + i * 22}
                     y={pxHeight / 2 - 4}
                     width="14"
