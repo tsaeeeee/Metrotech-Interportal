@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 
@@ -8,6 +9,11 @@ let dbInstance: Database.Database | null = null;
 
 export function getDb(): Database.Database {
     if (!dbInstance) {
+        const dir = path.dirname(DB_PATH);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+
         dbInstance = new Database(DB_PATH);
 
         // Enable WAL mode for better concurrency

@@ -13,4 +13,11 @@
 * **Styling**: Tailwind CSS 4.0
 * **Tooling**: Biome (Linting & Formatting)
 * **Icons**: Lucide React
-* **Database**: Flat-file JSON via Node.js Server Functions
+* **Database**: SQLite + JSON (Local Files)
+## 🛠 Local Development
+The application uses local files for data storage (`data/db.sqlite` and `data/db.json`). These files are ignored by Git to prevent conflicts. 
+
+When you run the app for the first time, it will automatically:
+1. Create the `data/` directory.
+2. Initialize a fresh SQLite database with the required schema.
+3. Create an empty JSON database.

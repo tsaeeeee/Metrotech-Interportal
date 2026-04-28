@@ -79,6 +79,8 @@ async function readDb(): Promise<Database> {
 async function writeDb(data: Database): Promise<void> {
     cachedDb = data;
     try {
+        const dir = path.dirname(DB_PATH);
+        await fs.mkdir(dir, { recursive: true });
         await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
     } catch (error) {
         console.error('Error writing DB:', error);
