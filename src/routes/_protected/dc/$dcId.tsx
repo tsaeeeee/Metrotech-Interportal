@@ -5,7 +5,7 @@ import {
     useSensor,
     useSensors,
 } from '@dnd-kit/core';
-import { createFileRoute, Link, redirect } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
 import { Activity, Box, Info, Plus } from 'lucide-react';
 import React, {
@@ -36,7 +36,11 @@ import {
     updateRoom,
     upsertDevice,
 } from '../../../features/database/database-service';
-import { getDatacenterById } from '../../../features/datacenters/datacenter-service';
+import {
+    deleteDatacenter,
+    getDatacenterById,
+    updateDatacenter,
+} from '../../../features/datacenters/datacenter-service';
 import { AssetForm } from '../../../features/editor/components/asset-form';
 import { AssetTray } from '../../../features/editor/components/asset-palette';
 import { InfrastructureNavigator } from '../../../features/navigation/components/infrastructure-navigator';
@@ -80,6 +84,9 @@ function App() {
     const deleteRackFn = useServerFn(deleteRack);
     const updateEntityOrderFn = useServerFn(updateEntityOrder);
     const updateRackPositionFn = useServerFn(updateRackPosition);
+    const updateDcFn = useServerFn(updateDatacenter);
+    const deleteDcFn = useServerFn(deleteDatacenter);
+    const router = useRouter();
 
     const [viewMode, setViewMode] = useState<ViewMode>('rack');
     const [rackData, setRackData] = useState<{
@@ -341,7 +348,13 @@ function App() {
             await deleteRoomFn({ data: id } as never);
             await loadHierarchy();
             if (roomData?.room.id === id || rackData?.room.id === id) {
-                loadRack('rk-01'); // Fallback
+                // Fallback to first room if possible
+                const firstRoom = hierarchy?.rooms.find(r => r.floorId === dc.code && r.id !== id);
+                if (firstRoom) {
+                    loadRoom(firstRoom.id);
+                } else {
+                    router.navigate({ to: '/' });
+                }
             }
         } finally {
             setIsRefreshing(false);
@@ -393,6 +406,27 @@ function App() {
         try {
             await updateEntityOrderFn({ data: { type, orders } } as never);
             await loadHierarchy();
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    const handleUpdateDatacenter = async (name: string, location: string) => {
+        setIsRefreshing(true);
+        try {
+            await updateDcFn({ data: { id: dc.id, name, location: location || dc.location } } as never);
+            await router.invalidate();
+            await loadHierarchy();
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    const handleDeleteDatacenter = async () => {
+        setIsRefreshing(true);
+        try {
+            await deleteDcFn({ data: dc.id } as never);
+            router.navigate({ to: '/' });
         } finally {
             setIsRefreshing(false);
         }
@@ -460,7 +494,6 @@ function App() {
     };
 
     // Initial boundary check for currentData availability
-    const _floorName = currentData?.floor.name || '...';
     const roomName = currentData?.room.name || '...';
     const rackName = viewMode === 'rack' ? rackData?.rack.name : undefined;
 
@@ -644,6 +677,7 @@ function App() {
                         <InfrastructureNavigator
                             hierarchy={hierarchy}
                             viewMode={viewMode}
+                            currentDcCode={dc.code}
                             currentRoomId={
                                 roomData?.room.id || rackData?.room.id
                             }
@@ -652,6 +686,8 @@ function App() {
                             onLoadRack={loadRack}
                             onAddRoom={() => setIsAddingRoom(true)}
                             onAddRack={() => setIsAddingRack(true)}
+                            onUpdateDatacenter={handleUpdateDatacenter}
+                            onDeleteDatacenter={handleDeleteDatacenter}
                             onUpdateRoom={handleUpdateRoom}
                             onDeleteRoom={handleDeleteRoom}
                             onUpdateRack={handleUpdateRack}

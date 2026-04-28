@@ -12,13 +12,14 @@ export interface Datacenter {
 }
 
 export const createDatacenter = createServerFn({ method: 'POST' }).handler(
-    async (ctx: { data: { name: string; code: string; location: string } }) => {
+    async (ctx: unknown) => {
+        const { data } = ctx as { data: { name: string; code: string; location: string } };
         const session = await getSession();
         if (!session || !session.user) {
             throw new Error('Unauthorized');
         }
 
-        const { name, code, location } = ctx.data;
+        const { name, code, location } = data;
         const db = getDb();
 
         // Check if code exists globally
@@ -68,18 +69,53 @@ export const getDatacenters = createServerFn({ method: 'GET' }).handler(
 );
 
 export const getDatacenterById = createServerFn({ method: 'GET' }).handler(
-    async (ctx: { data: string }): Promise<Datacenter | null> => {
+    async (ctx: unknown): Promise<Datacenter | null> => {
+        const { data: id } = ctx as { data: string };
         const session = await getSession();
         if (!session || !session.user) {
             throw new Error('Unauthorized');
         }
 
-        const id = ctx.data;
         const db = getDb();
         const datacenter = db
             .prepare('SELECT * FROM datacenters WHERE id = ?')
             .get(id);
 
         return datacenter as Datacenter | null;
+    },
+);
+
+export const updateDatacenter = createServerFn({ method: 'POST' }).handler(
+    async (ctx: unknown) => {
+        const { data } = ctx as { data: { id: string; name: string; location: string } };
+        const session = await getSession();
+        if (!session || !session.user) {
+            throw new Error('Unauthorized');
+        }
+
+        const { id, name, location } = data;
+        const db = getDb();
+
+        db.prepare(
+            'UPDATE datacenters SET name = ?, location = ? WHERE id = ?',
+        ).run(name, location, id);
+
+        return { success: true };
+    },
+);
+
+export const deleteDatacenter = createServerFn({ method: 'POST' }).handler(
+    async (ctx: unknown) => {
+        const { data: id } = ctx as { data: string };
+        const session = await getSession();
+        if (!session || !session.user) {
+            throw new Error('Unauthorized');
+        }
+
+        const db = getDb();
+
+        db.prepare('DELETE FROM datacenters WHERE id = ?').run(id);
+
+        return { success: true };
     },
 );

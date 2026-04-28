@@ -36,12 +36,15 @@ interface InfrastructureNavigatorProps {
         racks: Rack[];
     } | null;
     viewMode: 'room' | 'rack';
+    currentDcCode?: string;
     currentRoomId?: string;
     currentRackId?: string;
     onLoadRoom: (id: string) => void;
     onLoadRack: (id: string) => void;
     onAddRoom: () => void;
     onAddRack: () => void;
+    onUpdateDatacenter: (name: string, location: string) => Promise<void>;
+    onDeleteDatacenter: () => Promise<void>;
     onUpdateRoom: (id: string, name: string) => Promise<void>;
     onDeleteRoom: (id: string) => Promise<void>;
     onUpdateRack: (id: string, name: string) => Promise<void>;
@@ -55,12 +58,15 @@ interface InfrastructureNavigatorProps {
 export function InfrastructureNavigator({
     hierarchy,
     viewMode,
+    currentDcCode,
     currentRoomId,
     currentRackId,
     onLoadRoom,
     onLoadRack,
     onAddRoom,
     onAddRack,
+    onUpdateDatacenter,
+    onDeleteDatacenter,
     onUpdateRoom,
     onDeleteRoom,
     onUpdateRack,
@@ -133,9 +139,11 @@ export function InfrastructureNavigator({
     const handleSave = async (
         id: string,
         newName: string,
-        type: 'room' | 'rack',
+        type: 'dc' | 'room' | 'rack',
     ) => {
-        if (type === 'room') {
+        if (type === 'dc') {
+            await onUpdateDatacenter(newName, ''); // Location might need another way to edit if needed, but name is primary
+        } else if (type === 'room') {
             await onUpdateRoom(id, newName);
         } else {
             await onUpdateRack(id, newName);
@@ -144,6 +152,10 @@ export function InfrastructureNavigator({
     };
 
     if (!hierarchy) return null;
+
+    const filteredFloors = currentDcCode
+        ? hierarchy.floors.filter((f) => f.id === currentDcCode)
+        : hierarchy.floors;
 
     return (
         <aside className="island-shell bg-white/90 backdrop-blur-md border border-zinc-100 rounded-3xl p-6 sticky top-[76px] z-10 max-h-[calc(100vh-92px)] overflow-y-auto custom-scrollbar shadow-sm">
@@ -170,10 +182,68 @@ export function InfrastructureNavigator({
                 onDragEnd={handleSortEnd}
             >
                 <div className="space-y-6">
-                    {hierarchy.floors.map((floor) => (
+                    {filteredFloors.map((floor) => (
                         <div key={floor.id} className="space-y-4">
-                            <div className="flex items-center gap-2 px-1 text-zinc-500 dark:text-zinc-400 font-bold text-[10px] uppercase tracking-widest border-b border-zinc-100 dark:border-zinc-800 pb-2 mb-2">
-                                <span>{floor.name}</span>
+                            <div className="flex items-center justify-between px-1 text-zinc-500 dark:text-zinc-400 font-bold text-[10px] uppercase tracking-widest border-b border-zinc-100 dark:border-zinc-800 pb-2 mb-2 group/dc">
+                                {editingId === `dc-${floor.id}` ? (
+                                    <div className="flex-1 flex items-center gap-2">
+                                        <input
+                                            autoFocus
+                                            defaultValue={floor.name}
+                                            onKeyDown={async (e) => {
+                                                if (e.key === 'Enter') {
+                                                    await handleSave(
+                                                        floor.id,
+                                                        e.currentTarget.value,
+                                                        'dc',
+                                                    );
+                                                }
+                                                if (e.key === 'Escape')
+                                                    setEditingId(null);
+                                            }}
+                                            className="bg-transparent border-b border-emerald-500 outline-none text-emerald-600 dark:text-emerald-400 w-full"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingId(null)}
+                                            className="text-zinc-400 hover:text-zinc-600"
+                                        >
+                                            <X size={10} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <span>{floor.name}</span>
+                                        <div className="flex items-center gap-1 opacity-0 group-hover/dc:opacity-100 transition-opacity">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setEditingId(`dc-${floor.id}`)
+                                                }
+                                                className="p-1 hover:bg-black/5 rounded text-zinc-400 hover:text-emerald-500 transition-colors cursor-pointer"
+                                                title="Edit Datacenter"
+                                            >
+                                                <Pencil size={10} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (
+                                                        confirm(
+                                                            'Delete this entire datacenter? This cannot be undone.',
+                                                        )
+                                                    ) {
+                                                        onDeleteDatacenter();
+                                                    }
+                                                }}
+                                                className="p-1 hover:bg-black/5 rounded text-zinc-400 hover:text-red-500 transition-colors cursor-pointer"
+                                                title="Delete Datacenter"
+                                            >
+                                                <Trash2 size={10} />
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             <SortableContext
