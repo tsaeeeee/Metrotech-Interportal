@@ -13,7 +13,9 @@ export interface Datacenter {
 
 export const createDatacenter = createServerFn({ method: 'POST' }).handler(
     async (ctx: unknown) => {
-        const { data } = ctx as { data: { name: string; code: string; location: string } };
+        const { data } = ctx as {
+            data: { name: string; code: string; location: string };
+        };
         const session = await getSession();
         if (!session || !session.user) {
             throw new Error('Unauthorized');
@@ -87,7 +89,9 @@ export const getDatacenterById = createServerFn({ method: 'GET' }).handler(
 
 export const updateDatacenter = createServerFn({ method: 'POST' }).handler(
     async (ctx: unknown) => {
-        const { data } = ctx as { data: { id: string; name: string; location: string } };
+        const { data } = ctx as {
+            data: { id: string; name: string; location: string };
+        };
         const session = await getSession();
         if (!session || !session.user) {
             throw new Error('Unauthorized');

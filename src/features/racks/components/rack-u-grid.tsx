@@ -84,7 +84,7 @@ export function RackUGrid({
                             style={{ height: '24px', flexShrink: 0 }}
                             className="relative shadow-[0_1px_0_rgba(0,0,0,0.1)] dark:shadow-[0_1px_0_rgba(39,39,42,0.5)]"
                         >
-                            <span className="absolute -left-10 top-1 text-[10px] font-mono text-zinc-500 select-none">
+                            <span className="absolute -left-10 top-1 text-[10px] font-mono text-zinc-500 select-none pointer-events-none">
                                 {u}U
                             </span>
                         </div>

@@ -40,7 +40,9 @@ function LoginPage() {
             await router.invalidate();
             router.navigate({ to: '/' });
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Something went wrong');
+            setError(
+                err instanceof Error ? err.message : 'Something went wrong',
+            );
         } finally {
             setLoading(false);
         }

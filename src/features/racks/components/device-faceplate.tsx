@@ -19,6 +19,10 @@ export function DeviceFaceplate({ device, isDragging }: DeviceFaceplateProps) {
                 return <ServerFaceplate uHeight={uHeight} />;
             case 'pdu':
                 return <PDUFaceplate uHeight={uHeight} />;
+            case 'cable':
+                return <CableFaceplate uHeight={uHeight} />;
+            case 'panel':
+                return <PanelFaceplate />;
             default:
                 return <GenericFaceplate uHeight={uHeight} />;
         }
@@ -202,6 +206,57 @@ function PDUFaceplate({ uHeight }: { uHeight: number }) {
                     opacity="0.6"
                 />
             ))}
+        </g>
+    );
+}
+
+function CableFaceplate({ uHeight }: { uHeight: number }) {
+    const pxHeight = uHeight * 24 - 2;
+    return (
+        <g>
+            {/* Cable management fingers/rings */}
+            {Array.from({ length: 12 }).map((_, i) => (
+                <rect
+                    // biome-ignore lint/suspicious/noArrayIndexKey: decorative
+                    key={`ring-${i}`}
+                    x={35 + i * 22}
+                    y={4}
+                    width="3"
+                    height={pxHeight - 8}
+                    rx="1.5"
+                    fill="#3F3F46"
+                />
+            ))}
+            <rect
+                x="30"
+                y={pxHeight / 2 - 1}
+                width="260"
+                height="2"
+                fill="#27272A"
+                rx="1"
+            />
+        </g>
+    );
+}
+
+function PanelFaceplate() {
+    return (
+        <g>
+            {/* Very subtle texture for blank panel */}
+            <defs>
+                <linearGradient id="panelGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#27272A" stopOpacity="0.1" />
+                    <stop offset="100%" stopColor="#27272A" stopOpacity="0" />
+                </linearGradient>
+            </defs>
+            <rect
+                x="5"
+                y="5"
+                width="310"
+                height="14"
+                fill="url(#panelGrad)"
+                rx="1"
+            />
         </g>
     );
 }

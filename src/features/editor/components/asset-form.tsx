@@ -1,9 +1,11 @@
 import { useServerFn } from '@tanstack/react-start';
 import {
     Cable,
+    ChevronDown,
     Database,
     Info,
     Layout,
+    MoreHorizontal,
     Network,
     Save,
     Server,
@@ -37,7 +39,7 @@ interface AssetFormProps {
 const BASE_PRESETS = [
     {
         name: 'Standard Server',
-        type: 'server',
+        type: 'server' as const,
         uHeight: 2,
         icon: Server,
         color: '#2ecc71',
@@ -45,7 +47,7 @@ const BASE_PRESETS = [
     },
     {
         name: 'Core Switch',
-        type: 'network',
+        type: 'network' as const,
         uHeight: 1,
         icon: Network,
         color: '#3498db',
@@ -53,19 +55,30 @@ const BASE_PRESETS = [
     },
     {
         name: 'Storage Array',
-        type: 'storage',
+        type: 'storage' as const,
         uHeight: 4,
         icon: Database,
         color: '#9b59b6',
         ports: 4,
     },
+];
+
+const OTHER_PRESETS = [
     {
-        name: 'Storage Array',
-        type: 'storage',
-        uHeight: 4,
-        icon: Database,
-        color: '#9b59b6',
-        ports: 4,
+        name: 'Fixed 1U',
+        type: 'cable' as const,
+        uHeight: 1,
+        icon: Cable,
+        color: '#94a3b8',
+        ports: 0,
+    },
+    {
+        name: 'Custom Height',
+        type: 'panel' as const,
+        uHeight: 1,
+        icon: Layout,
+        color: '#64748b',
+        ports: 0,
     },
 ];
 
@@ -82,6 +95,7 @@ export function AssetForm({
     const upsertInventoryFn = useServerFn(upsertInventoryAsset);
     const [activeTab, setActiveTab] = useState<'info' | 'connections'>('info');
     const [isPatching, setIsPatching] = useState<Port | null>(null);
+    const [showOthers, setShowOthers] = useState(false);
     const [formData, setFormData] = useState<Device>({
         id: crypto.randomUUID(),
         name: '',
@@ -104,7 +118,9 @@ export function AssetForm({
         }
     }, [device]);
 
-    const applyPreset = (preset: (typeof BASE_PRESETS)[0]) => {
+    const applyPreset = (
+        preset: (typeof BASE_PRESETS | typeof OTHER_PRESETS)[0],
+    ) => {
         const dummyPorts: Port[] = Array.from(
             { length: preset.ports },
             (_, i) => ({
@@ -123,6 +139,7 @@ export function AssetForm({
             uHeight: preset.uHeight,
             ports: dummyPorts,
         }));
+        setShowOthers(false);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -212,7 +229,7 @@ export function AssetForm({
                     <span className="text-[10px] font-bold text-(--sea-ink-soft) opacity-60 uppercase tracking-widest pl-1 leading-none">
                         Starting Point
                     </span>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-4 gap-2 relative">
                         {BASE_PRESETS.map((preset) => (
                             <button
                                 key={preset.name}
@@ -243,6 +260,81 @@ export function AssetForm({
                                 </span>
                             </button>
                         ))}
+
+                        {/* Others Menu */}
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setShowOthers(!showOthers)}
+                                className={cn(
+                                    'w-full h-full flex flex-col items-center justify-center p-3 rounded-xl border border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5 transition-all hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/10 dark:hover:border-white/20 active:scale-95 group',
+                                    (formData.type === 'cable' ||
+                                        formData.type === 'panel') &&
+                                        'bg-(--sea-teal)/10 border-(--sea-teal)/40 text-(--sea-teal)',
+                                )}
+                            >
+                                <MoreHorizontal
+                                    size={20}
+                                    className={cn(
+                                        'mb-2 opacity-40 group-hover:opacity-100 transition-opacity',
+                                        (formData.type === 'cable' ||
+                                            formData.type === 'panel') &&
+                                            'opacity-100',
+                                    )}
+                                />
+                                <div className="flex items-center gap-1">
+                                    <span
+                                        className={cn(
+                                            'text-[9px] font-bold uppercase tracking-tight text-(--sea-ink-soft) opacity-60 group-hover:text-(--sea-ink) group-hover:opacity-100 transition-all',
+                                            (formData.type === 'cable' ||
+                                                formData.type === 'panel') &&
+                                                'text-(--sea-teal)',
+                                        )}
+                                    >
+                                        Others
+                                    </span>
+                                    <ChevronDown
+                                        size={10}
+                                        className="opacity-40"
+                                    />
+                                </div>
+                            </button>
+
+                            {showOthers && (
+                                <>
+                                    <button
+                                        type="button"
+                                        className="fixed inset-0 z-40 cursor-default"
+                                        onClick={() => setShowOthers(false)}
+                                        aria-label="Close menu"
+                                    />
+                                    <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-100">
+                                        {OTHER_PRESETS.map((preset) => (
+                                            <button
+                                                key={preset.name}
+                                                type="button"
+                                                onClick={() =>
+                                                    applyPreset(preset)
+                                                }
+                                                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left group"
+                                            >
+                                                <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-(--sea-teal) transition-colors">
+                                                    <preset.icon size={16} />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                                                        {preset.name}
+                                                    </span>
+                                                    <span className="text-[9px] text-zinc-400 font-medium uppercase tracking-wider">
+                                                        {preset.type}
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
@@ -331,6 +423,11 @@ export function AssetForm({
                                     <option value="storage">
                                         Storage Array
                                     </option>
+                                    <option value="pdu">PDU / Power</option>
+                                    <option value="cable">
+                                        Cable Management
+                                    </option>
+                                    <option value="panel">Blank Panel</option>
                                 </select>
                             </div>
                             <div>

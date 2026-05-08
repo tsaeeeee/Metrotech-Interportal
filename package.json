@@ -7,12 +7,13 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
-    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "format": "biome format",
-    "lint": "biome lint",
-    "check": "biome check"
+    "lint": "biome lint && tsc --noEmit",
+    "check": "biome check && tsc --noEmit"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

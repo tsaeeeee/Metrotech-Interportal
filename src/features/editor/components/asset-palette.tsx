@@ -82,7 +82,7 @@ function DraggableAsset({
 }: DraggableAssetProps) {
     const { attributes, listeners, setNodeRef, transform, isDragging } =
         useDraggable({
-            id: asset.id,
+            id: `lib-${asset.id}`,
             data: {
                 type: 'master',
                 device: asset,
@@ -99,16 +99,16 @@ function DraggableAsset({
             ref={setNodeRef}
             style={style}
             className={cn(
-                'group relative flex items-center gap-3 p-2.5 rounded-xl border transition-all',
+                'group relative flex items-center gap-3 p-2.5 rounded-xl border transition-all select-none',
                 isDragging
-                    ? 'ring-2 ring-emerald-500 shadow-xl opacity-50 z-50'
+                    ? 'opacity-20 grayscale border-dashed border-zinc-300 dark:border-zinc-700 pointer-events-none'
                     : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 hover:border-(--lagoon) dark:hover:border-(--lagoon) hover:shadow-md cursor-grab active:cursor-grabbing',
             )}
         >
             <div
                 {...attributes}
                 {...listeners}
-                className="cursor-grab active:cursor-grabbing shrink-0"
+                className="cursor-grab active:cursor-grabbing shrink-0 w-8 h-10 -ml-2 flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-white/5 rounded-lg transition-colors"
             >
                 <GripVertical
                     size={14}

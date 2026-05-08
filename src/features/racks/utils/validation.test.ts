@@ -6,11 +6,12 @@ describe('Rack Validation Logic', () => {
     const mockRack: Rack = {
         id: 'rk-1',
         name: 'Test Rack',
-        floorId: 'fl-1',
+        roomId: 'rm-1',
         uCapacity: 42,
         devices: ['dv-1'],
         x: 0,
         y: 0,
+        order: 1,
     };
 
     const mockDevices: Device[] = [

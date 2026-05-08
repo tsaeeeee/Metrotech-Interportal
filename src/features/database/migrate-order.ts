@@ -7,15 +7,19 @@ async function migrate() {
     const data = await fs.readFile(DB_PATH, 'utf-8');
     const db = JSON.parse(data);
 
-    db.floors = db.floors.map((f, i) => ({
-        ...f,
-        order: f.order ?? i + 1,
-    }));
+    db.floors = db.floors.map(
+        (f: { order?: number } & Record<string, unknown>, i: number) => ({
+            ...f,
+            order: f.order ?? i + 1,
+        }),
+    );
 
-    db.racks = db.racks.map((r, i) => ({
-        ...r,
-        order: r.order ?? i + 1,
-    }));
+    db.racks = db.racks.map(
+        (r: { order?: number } & Record<string, unknown>, i: number) => ({
+            ...r,
+            order: r.order ?? i + 1,
+        }),
+    );
 
     await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
     console.log(

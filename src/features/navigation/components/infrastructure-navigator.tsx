@@ -188,7 +188,7 @@ export function InfrastructureNavigator({
                                 {editingId === `dc-${floor.id}` ? (
                                     <div className="flex-1 flex items-center gap-2">
                                         <input
-                                            autoFocus
+                                            ref={(el) => el?.focus()}
                                             defaultValue={floor.name}
                                             onKeyDown={async (e) => {
                                                 if (e.key === 'Enter') {
@@ -218,7 +218,9 @@ export function InfrastructureNavigator({
                                             <button
                                                 type="button"
                                                 onClick={() =>
-                                                    setEditingId(`dc-${floor.id}`)
+                                                    setEditingId(
+                                                        `dc-${floor.id}`,
+                                                    )
                                                 }
                                                 className="p-1 hover:bg-black/5 rounded text-zinc-400 hover:text-emerald-500 transition-colors cursor-pointer"
                                                 title="Edit Datacenter"
@@ -541,6 +543,7 @@ function SortableNavigatorItem({
 
                     {isEditing ? (
                         <input
+                            ref={(el) => el?.focus()}
                             value={localName}
                             onChange={(e) => setLocalName(e.target.value)}
                             onKeyDown={(e) => {

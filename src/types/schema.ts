@@ -13,7 +13,13 @@ export interface Room {
     order: number;
 }
 
-export type DeviceType = 'server' | 'network' | 'storage';
+export type DeviceType =
+    | 'server'
+    | 'network'
+    | 'storage'
+    | 'pdu'
+    | 'cable'
+    | 'panel';
 export type AssetStatus =
     | 'active'
     | 'maintenance'

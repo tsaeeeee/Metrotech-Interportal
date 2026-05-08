@@ -1,11 +1,17 @@
 import {
     DndContext,
     type DragMoveEvent,
+    DragOverlay,
     PointerSensor,
     useSensor,
     useSensors,
 } from '@dnd-kit/core';
-import { createFileRoute, Link, redirect, useRouter } from '@tanstack/react-router';
+import {
+    createFileRoute,
+    Link,
+    redirect,
+    useRouter,
+} from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
 import { Activity, Box, Info, Plus } from 'lucide-react';
 import React, {
@@ -32,7 +38,6 @@ import {
     getInventory,
     updateEntityOrder,
     updateRack,
-    updateRackPosition,
     updateRoom,
     upsertDevice,
 } from '../../../features/database/database-service';
@@ -44,6 +49,7 @@ import {
 import { AssetForm } from '../../../features/editor/components/asset-form';
 import { AssetTray } from '../../../features/editor/components/asset-palette';
 import { InfrastructureNavigator } from '../../../features/navigation/components/infrastructure-navigator';
+import { DeviceFaceplate } from '../../../features/racks/components/device-faceplate';
 import { RackUGrid } from '../../../features/racks/components/rack-u-grid';
 import { isRangeOccupied } from '../../../features/racks/utils/collision';
 import { createSnapToUModifier } from '../../../features/racks/utils/modifiers';
@@ -75,15 +81,12 @@ function App() {
     const fetchInventoryFn = useServerFn(getInventory);
     const duplicateMasterFn = useServerFn(duplicateInventoryAsset);
     const deleteMasterFn = useServerFn(deleteInventoryAsset);
-    const _createRoomFn = useServerFn(createRoom);
-    const _createRackFn = useServerFn(createRack);
     const fetchHierarchyFn = useServerFn(getInfrastructureSummary);
     const updateRoomFn = useServerFn(updateRoom);
     const deleteRoomFn = useServerFn(deleteRoom);
     const updateRackFn = useServerFn(updateRack);
     const deleteRackFn = useServerFn(deleteRack);
     const updateEntityOrderFn = useServerFn(updateEntityOrder);
-    const updateRackPositionFn = useServerFn(updateRackPosition);
     const updateDcFn = useServerFn(updateDatacenter);
     const deleteDcFn = useServerFn(deleteDatacenter);
     const router = useRouter();
@@ -117,6 +120,16 @@ function App() {
         racks: Rack[];
     } | null>(null);
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
+    const draggedDevice = useMemo(() => {
+        if (!activeDragId) return null;
+        const actualId = activeDragId.replace(/^lib-/, '');
+        return (
+            inventory.find((d) => d.id === actualId) ||
+            rackData?.devices.find((d) => d.id === actualId) ||
+            roomData?.allDevices.find((d) => d.id === actualId) ||
+            null
+        );
+    }, [activeDragId, inventory, rackData, roomData]);
     const [selectedDevice, setSelectedDevice] = useState<Device | undefined>(
         undefined,
     );
@@ -349,7 +362,9 @@ function App() {
             await loadHierarchy();
             if (roomData?.room.id === id || rackData?.room.id === id) {
                 // Fallback to first room if possible
-                const firstRoom = hierarchy?.rooms.find(r => r.floorId === dc.code && r.id !== id);
+                const firstRoom = hierarchy?.rooms.find(
+                    (r) => r.floorId === dc.code && r.id !== id,
+                );
                 if (firstRoom) {
                     loadRoom(firstRoom.id);
                 } else {
@@ -386,18 +401,6 @@ function App() {
         }
     };
 
-    const _handleMoveRack = async (id: string, x: number, y: number) => {
-        setIsRefreshing(true);
-        try {
-            await updateRackPositionFn({ data: { id, x, y } } as never);
-            await loadHierarchy();
-            if (viewMode === 'room' && roomData)
-                loadRoom(roomData.room.id, true);
-        } finally {
-            setIsRefreshing(false);
-        }
-    };
-
     const handleReorder = async (
         type: 'room' | 'rack',
         orders: { id: string; order: number }[],
@@ -414,7 +417,9 @@ function App() {
     const handleUpdateDatacenter = async (name: string, location: string) => {
         setIsRefreshing(true);
         try {
-            await updateDcFn({ data: { id: dc.id, name, location: location || dc.location } } as never);
+            await updateDcFn({
+                data: { id: dc.id, name, location: location || dc.location },
+            } as never);
             await router.invalidate();
             await loadHierarchy();
         } finally {
@@ -458,36 +463,44 @@ function App() {
     };
 
     const handleDragMove = (event: DragMoveEvent) => {
-        const { active, over, delta } = event;
+        const { active, over } = event;
         if (over?.id === 'rack-grid') {
-            const activeDevice = (rackData?.devices || []).find(
-                (d) => d.id === active.id,
-            );
-            // Fix height detection for both existing devices and library blueprints
-            const height =
-                activeDevice?.uHeight ||
-                active.data.current?.device?.uHeight ||
-                1;
-            const currentU = activeDevice?.uPosition || 42;
+            const rackRect = over.rect;
+            const activeRect = active.rect.current.translated;
 
-            const uChange = -Math.round(delta.y / 24);
-            const capacity = rackData?.rack.uCapacity || 42;
-            const projectedU = Math.max(
-                1,
-                Math.min(capacity - height + 1, currentU + uChange),
-            );
+            if (activeRect && rackRect) {
+                const activeDevice = (rackData?.devices || []).find(
+                    (d) => d.id === active.id,
+                );
+                const height =
+                    activeDevice?.uHeight ||
+                    active.data.current?.device?.uHeight ||
+                    1;
+                const capacity = rackData?.rack.uCapacity || 42;
 
-            const isOccupied = isRangeOccupied(
-                projectedU,
-                height,
-                rackData?.devices || [],
-                active.id as string,
-            );
-            setProjectedPlacement({
-                uPosition: projectedU,
-                uHeight: height,
-                isOccupied,
-            });
+                // Calculate U based on the vertical position relative to the top of the rack
+                const relativeY = activeRect.top - rackRect.top;
+                let projectedU =
+                    capacity - height + 1 - Math.round(relativeY / 24);
+
+                projectedU = Math.max(
+                    1,
+                    Math.min(capacity - height + 1, projectedU),
+                );
+
+                const actualId = (active.id as string).replace(/^lib-/, '');
+                const isOccupied = isRangeOccupied(
+                    projectedU,
+                    height,
+                    rackData?.devices || [],
+                    actualId,
+                );
+                setProjectedPlacement({
+                    uPosition: projectedU,
+                    uHeight: height,
+                    isOccupied,
+                });
+            }
         } else {
             setProjectedPlacement(null);
         }
@@ -501,9 +514,7 @@ function App() {
         <DndContext
             sensors={sensors}
             modifiers={
-                activeDragId?.toString().startsWith('tpl-')
-                    ? []
-                    : [snapToGridModifier]
+                activeDragId?.startsWith('lib-') ? [] : [snapToGridModifier]
             }
             onDragStart={(event) => setActiveDragId(event.active.id as string)}
             onDragMove={handleDragMove}
@@ -555,7 +566,7 @@ function App() {
                 }
 
                 // 2. Moving an existing device
-                const deviceId = active.id as string;
+                const deviceId = (active.id as string).replace(/^lib-/, '');
                 const device = (
                     rackData?.devices ||
                     roomData?.allDevices ||
@@ -619,7 +630,7 @@ function App() {
                                         type="button"
                                         onClick={() => setIsAddingRoom(true)}
                                         className={cn(
-                                            'flex items-center gap-2 px-6 py-2.5 bg-(--lagoon-deep) text-white rounded-xl text-sm font-black shadow-lg shadow-emerald-900/15 dark:shadow-lagoon/20 hover:brightness-110 transition-all active:scale-95 whitespace-nowrap border border-white/10 dark:border-white/5 cursor-pointer',
+                                            'flex items-center gap-2 px-6 py-2.5 bg-(--sea-teal) text-white dark:text-zinc-900 rounded-xl text-sm font-black shadow-lg shadow-emerald-900/15 dark:shadow-teal-500/20 hover:brightness-110 transition-all active:scale-95 whitespace-nowrap border border-white/10 dark:border-white/5 cursor-pointer',
                                         )}
                                     >
                                         <Plus size={18} />
@@ -630,7 +641,7 @@ function App() {
                                         type="button"
                                         onClick={() => setIsAddingRack(true)}
                                         className={cn(
-                                            'flex items-center gap-2 px-6 py-2.5 bg-(--lagoon-deep) text-white rounded-xl text-sm font-black shadow-lg shadow-emerald-900/15 dark:shadow-lagoon/20 hover:brightness-110 transition-all active:scale-95 whitespace-nowrap border border-white/10 dark:border-white/5 cursor-pointer',
+                                            'flex items-center gap-2 px-6 py-2.5 bg-(--sea-teal) text-white dark:text-zinc-900 rounded-xl text-sm font-black shadow-lg shadow-emerald-900/15 dark:shadow-teal-500/20 hover:brightness-110 transition-all active:scale-95 whitespace-nowrap border border-white/10 dark:border-white/5 cursor-pointer',
                                         )}
                                     >
                                         <Plus size={18} />
@@ -642,8 +653,10 @@ function App() {
                                         onClick={handleAddAsset}
                                         disabled={!rackData}
                                         className={cn(
-                                            'flex items-center gap-2 px-6 py-2.5 bg-(--lagoon-deep) text-white rounded-xl text-sm font-black shadow-lg shadow-emerald-900/15 dark:shadow-lagoon/20 transition-all whitespace-nowrap border border-white/10 dark:border-white/5 cursor-pointer',
-                                            rackData ? 'hover:brightness-110 active:scale-95' : 'opacity-50 cursor-not-allowed'
+                                            'flex items-center gap-2 px-6 py-2.5 bg-(--sea-teal) text-white dark:text-zinc-900 rounded-xl text-sm font-black shadow-lg shadow-emerald-900/15 dark:shadow-teal-500/20 transition-all whitespace-nowrap border border-white/10 dark:border-white/5 cursor-pointer',
+                                            rackData
+                                                ? 'hover:brightness-110 active:scale-95'
+                                                : 'opacity-50 cursor-not-allowed',
                                         )}
                                     >
                                         <Plus size={18} />
@@ -844,6 +857,17 @@ function App() {
                         onUpdateConnections={refreshData}
                     />
                 </Drawer>
+
+                <DragOverlay dropAnimation={null}>
+                    {activeDragId && draggedDevice ? (
+                        <div className="w-[320px] opacity-90 shadow-2xl ring-2 ring-emerald-500 rounded-sm overflow-hidden bg-zinc-900 cursor-grabbing active:scale-105 transition-transform">
+                            <DeviceFaceplate
+                                device={draggedDevice}
+                                isDragging={true}
+                            />
+                        </div>
+                    ) : null}
+                </DragOverlay>
             </main>
         </DndContext>
     );

@@ -17,6 +17,8 @@
   --palm: #2f6a4a;
   --sand: #e7f0e8;
   --foam: #f3faf5;
+  --sea-teal: #0d9488;
+  --sea-aqua: #14b8a6;
   --surface: rgba(255, 255, 255, 0.74);
   --surface-strong: rgba(255, 255, 255, 0.9);
   --line: rgba(23, 58, 64, 0.14);
@@ -39,6 +41,8 @@
   --palm: #6ec89a;
   --sand: #0f1a1e;
   --foam: #101d22;
+  --sea-teal: #2dd4bf;
+  --sea-aqua: #5eead4;
   --surface: rgba(16, 30, 34, 0.8);
   --surface-strong: rgba(15, 27, 31, 0.92);
   --line: rgba(141, 229, 219, 0.18);

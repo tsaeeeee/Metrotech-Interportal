@@ -16,10 +16,11 @@ async function hashPassword(password: string): Promise<string> {
         .toString('hex');
 }
 
-export const signUp = createServerFn({ method: 'POST' }).handler(
-    async (ctx: {
-        data: { fullName: string; email: string; password: string };
-    }) => {
+export const signUp = createServerFn({ method: 'POST' })
+    .inputValidator(
+        (data: { fullName: string; email: string; password: string }) => data,
+    )
+    .handler(async (ctx) => {
         const { fullName, email, password } = ctx.data;
         const db = getDb();
 
@@ -58,11 +59,11 @@ export const signUp = createServerFn({ method: 'POST' }).handler(
         });
 
         return { success: true };
-    },
-);
+    });
 
-export const login = createServerFn({ method: 'POST' }).handler(
-    async (ctx: { data: { email: string; password: string } }) => {
+export const login = createServerFn({ method: 'POST' })
+    .inputValidator((data: { email: string; password: string }) => data)
+    .handler(async (ctx) => {
         const { email, password } = ctx.data;
         const db = getDb();
 
@@ -95,8 +96,7 @@ export const login = createServerFn({ method: 'POST' }).handler(
         });
 
         return { success: true };
-    },
-);
+    });
 
 export const logout = createServerFn({ method: 'POST' }).handler(async () => {
     const token = getCookie(SESSION_COOKIE_NAME);
@@ -134,7 +134,14 @@ export const getSession = createServerFn({ method: 'GET' }).handler(
         JOIN users u ON s.user_id = u.id 
         WHERE s.token = ?
     `)
-            .get(token) as { expires_at: number; id: string; full_name: string; email: string } | undefined;
+            .get(token) as
+            | {
+                  expires_at: number;
+                  id: string;
+                  full_name: string;
+                  email: string;
+              }
+            | undefined;
 
         if (!session) {
             return null;

@@ -28,7 +28,8 @@ export function RackDevice({ device, rackCapacity, onEdit }: RackDeviceProps) {
         top: `${top}px`,
         height: `${height}px`, // Pixel-perfect fit
         transform: CSS.Translate.toString(transform),
-        opacity: isDragging ? 0.6 : 1,
+        opacity: isDragging ? 0.2 : 1,
+        filter: isDragging ? 'grayscale(1)' : 'none',
         zIndex: isDragging ? 50 : 10,
     };
 
@@ -37,6 +38,8 @@ export function RackDevice({ device, rackCapacity, onEdit }: RackDeviceProps) {
         network: 'text-sky-500 font-extrabold',
         pdu: 'text-amber-500 font-extrabold',
         storage: 'text-indigo-500 font-extrabold',
+        cable: 'text-slate-400 font-extrabold',
+        panel: 'text-zinc-500 font-extrabold',
     };
 
     return (
@@ -52,7 +55,7 @@ export function RackDevice({ device, rackCapacity, onEdit }: RackDeviceProps) {
             type="button"
             aria-label={`Edit ${device.name}`}
             className={cn(
-                'absolute left-0 right-0 group transition-all duration-100 active:cursor-grabbing cursor-grab flex items-center shadow-lg rounded-sm overflow-hidden border border-white/10 hover:border-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer',
+                'absolute left-0 right-0 group transition-all duration-100 active:cursor-grabbing cursor-grab flex items-center shadow-lg rounded-sm overflow-hidden border border-white/10 hover:border-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer select-none',
             )}
         >
             {/* The High-Fidelity faceplate */}

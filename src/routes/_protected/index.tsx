@@ -1,15 +1,23 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
-import { ArrowRight, Building2, MapPin, Plus, Server, Tag } from 'lucide-react';
+import {
+    ArrowRight,
+    Building2,
+    MapPin,
+    Pencil,
+    Plus,
+    Server,
+    Tag,
+    Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import {
     createDatacenter,
-    deleteDatacenter,
     type Datacenter,
+    deleteDatacenter,
     getDatacenters,
     updateDatacenter,
 } from '../../features/datacenters/datacenter-service';
-import { Pencil, Trash2 } from 'lucide-react';
 
 export const Route = createFileRoute('/_protected/')({
     loader: async () => {
@@ -50,12 +58,18 @@ function DashboardPage() {
         ).value.trim();
 
         try {
-            const result = await createDcFn({ data: { name, code, location } } as never);
+            const result = await createDcFn({
+                data: { name, code, location },
+            } as never);
             setDatacenters((prev) => [result.datacenter, ...prev]);
             setShowForm(false);
             form.reset();
         } catch (err) {
-            setFormError(err instanceof Error ? err.message : 'Failed to create datacenter');
+            setFormError(
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to create datacenter',
+            );
         } finally {
             setSubmitting(false);
         }
@@ -76,7 +90,9 @@ function DashboardPage() {
         ).value.trim();
 
         try {
-            await updateDcFn({ data: { id: editingDc.id, name, location } } as never);
+            await updateDcFn({
+                data: { id: editingDc.id, name, location },
+            } as never);
             setDatacenters((prev) =>
                 prev.map((d) =>
                     d.id === editingDc.id ? { ...d, name, location } : d,
@@ -84,19 +100,32 @@ function DashboardPage() {
             );
             setEditingDc(null);
         } catch (err) {
-            setFormError(err instanceof Error ? err.message : 'Failed to update datacenter');
+            setFormError(
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to update datacenter',
+            );
         } finally {
             setSubmitting(false);
         }
     };
 
     const handleDeleteDc = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this datacenter? All associated rooms and racks will be lost.')) return;
+        if (
+            !confirm(
+                'Are you sure you want to delete this datacenter? All associated rooms and racks will be lost.',
+            )
+        )
+            return;
         try {
             await deleteDcFn({ data: id } as never);
             setDatacenters((prev) => prev.filter((d) => d.id !== id));
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to delete datacenter');
+            alert(
+                err instanceof Error
+                    ? err.message
+                    : 'Failed to delete datacenter',
+            );
         }
     };
 
@@ -200,7 +229,9 @@ function DashboardPage() {
                                     disabled={submitting}
                                     className="px-6 py-2.5 bg-(--lagoon-deep) text-white rounded-xl font-black text-sm shadow-lg shadow-emerald-900/15 hover:brightness-110 transition-all active:scale-95 disabled:opacity-60 cursor-pointer"
                                 >
-                                    {submitting ? 'Creating…' : 'Add Datacenter'}
+                                    {submitting
+                                        ? 'Creating…'
+                                        : 'Add Datacenter'}
                                 </button>
                                 <button
                                     type="button"
@@ -355,7 +386,10 @@ function DatacenterCard({
                 </h2>
 
                 <div className="flex items-center gap-1.5 mb-3">
-                    <Tag size={11} className="text-(--sea-ink-soft) opacity-60" />
+                    <Tag
+                        size={11}
+                        className="text-(--sea-ink-soft) opacity-60"
+                    />
                     <span className="text-[11px] font-mono font-bold text-(--sea-ink-soft) opacity-70 uppercase tracking-wider">
                         {dc.code}
                     </span>
