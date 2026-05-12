@@ -22,11 +22,18 @@ export function DeviceFaceplate({ device, isDragging }: DeviceFaceplateProps) {
             case 'cable':
                 return <CableFaceplate uHeight={uHeight} />;
             case 'panel':
-                return <PanelFaceplate />;
+                return device.ports.length > 0 ? (
+                    <PatchPanelFaceplate
+                        uHeight={uHeight}
+                        ports={device.ports.length}
+                    />
+                ) : (
+                    <PanelFaceplate />
+                );
             default:
                 return <GenericFaceplate uHeight={uHeight} />;
         }
-    }, [device.type, uHeight]);
+    }, [device.type, uHeight, device.ports.length]);
 
     return (
         <svg
@@ -235,6 +242,56 @@ function CableFaceplate({ uHeight }: { uHeight: number }) {
                 fill="#27272A"
                 rx="1"
             />
+        </g>
+    );
+}
+
+function PatchPanelFaceplate({
+    uHeight,
+    ports,
+}: {
+    uHeight: number;
+    ports: number;
+}) {
+    const pxHeight = uHeight * 24 - 2;
+    // Layout ports in groups of 6, typical for patch panels
+    const portsPerRow = 24;
+    const groupsOf = 6;
+    const rows = Math.ceil(ports / portsPerRow);
+
+    return (
+        <g>
+            {Array.from({ length: rows }).map((_, rowIndex) => {
+                const rowY =
+                    rows === 1
+                        ? pxHeight / 2 - 4
+                        : (pxHeight / (rows + 1)) * (rowIndex + 1) - 4;
+
+                return (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: decorative
+                    <g key={`row-${rowIndex}`}>
+                        {Array.from({ length: portsPerRow }).map((_, i) => {
+                            // Add small gaps between groups of 6
+                            const groupOffset = Math.floor(i / groupsOf) * 4;
+                            const x = 12 + i * 12 + groupOffset;
+                            return (
+                                <rect
+                                    // biome-ignore lint/suspicious/noArrayIndexKey: decorative
+                                    key={`port-${i}`}
+                                    x={x}
+                                    y={rowY}
+                                    width="8"
+                                    height="8"
+                                    rx="1"
+                                    fill="#000"
+                                    stroke="#3F3F46"
+                                    strokeWidth="0.5"
+                                />
+                            );
+                        })}
+                    </g>
+                );
+            })}
         </g>
     );
 }

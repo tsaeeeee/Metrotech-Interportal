@@ -73,6 +73,22 @@ const OTHER_PRESETS = [
         ports: 0,
     },
     {
+        name: 'Patch Panel 1U',
+        type: 'panel' as const,
+        uHeight: 1,
+        icon: Layout,
+        color: '#475569',
+        ports: 24,
+    },
+    {
+        name: 'Patch Panel 2U',
+        type: 'panel' as const,
+        uHeight: 2,
+        icon: Layout,
+        color: '#475569',
+        ports: 48,
+    },
+    {
         name: 'Custom Height',
         type: 'panel' as const,
         uHeight: 1,
@@ -427,7 +443,9 @@ export function AssetForm({
                                     <option value="cable">
                                         Cable Management
                                     </option>
-                                    <option value="panel">Blank Panel</option>
+                                    <option value="panel">
+                                        Custom Height / Blank
+                                    </option>
                                 </select>
                             </div>
                             <div>
