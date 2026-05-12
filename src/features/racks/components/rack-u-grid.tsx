@@ -37,10 +37,13 @@ export function RackUGrid({
             <div
                 className="relative bg-(--bg-base) border-12 border-(--lagoon-deep)/20 rounded-lg shadow-2xl overflow-hidden"
                 style={{
-                    width: '340px',
-                    height: `${uCapacity * 24}px`,
+                    width: '364px', // 340 + 24
+                    height: `${uCapacity * 24 + 48}px`, // 24 for borders + 24 for bottom base
                 }}
             >
+                {/* Bottom Base Plate / Kick Plate */}
+                <div className="absolute bottom-0 left-0 right-0 h-6 bg-zinc-900/40 dark:bg-black/40 border-t border-white/5" />
+
                 {/* Visual "Rail" Accents */}
                 <div className="absolute inset-y-0 left-2 w-1 bg-zinc-300 dark:bg-white/10" />
                 <div className="absolute inset-y-0 right-2 w-1 bg-zinc-300 dark:bg-white/10" />
