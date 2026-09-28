@@ -586,7 +586,7 @@ function App() {
                         uPosition: finalU,
                         rackId: rackData?.rack.id || '',
                         status: 'active',
-                        ports: (blueprint.ports || []).map((port) => ({
+                        ports: (blueprint.ports || []).map((port: Device['ports'][number]) => ({
                             ...port,
                             id: crypto.randomUUID(),
                             deviceId: newId,
