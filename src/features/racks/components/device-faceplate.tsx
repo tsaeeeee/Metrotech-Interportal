@@ -21,6 +21,8 @@ export function DeviceFaceplate({ device, isDragging }: DeviceFaceplateProps) {
                 return <PDUFaceplate uHeight={uHeight} />;
             case 'cable':
                 return <CableFaceplate uHeight={uHeight} />;
+            case 'airflow':
+                return <AirflowFaceplate uHeight={uHeight} />;
             case 'panel':
                 return device.ports.length > 0 ? (
                     <PatchPanelFaceplate
@@ -211,6 +213,38 @@ function PDUFaceplate({ uHeight }: { uHeight: number }) {
                     rx="1.5"
                     fill={i < 4 ? '#EF4444' : i < 8 ? '#3B82F6' : '#10B981'}
                     opacity="0.6"
+                />
+            ))}
+        </g>
+    );
+}
+
+function AirflowFaceplate({ uHeight }: { uHeight: number }) {
+    const pxHeight = uHeight * 24 - 2;
+
+    return (
+        <g>
+            <rect
+                x="18"
+                y="5"
+                width="284"
+                height={Math.max(8, pxHeight - 10)}
+                rx="3"
+                fill="#172126"
+                stroke="#42C9BC"
+                strokeOpacity="0.35"
+            />
+            {Array.from({ length: 14 }).map((_, index) => (
+                <line
+                    // biome-ignore lint/suspicious/noArrayIndexKey: decorative grille
+                    key={index}
+                    x1={30 + index * 18}
+                    y1="8"
+                    x2={30 + index * 18}
+                    y2={Math.max(10, pxHeight - 8)}
+                    stroke="#64748B"
+                    strokeOpacity="0.45"
+                    strokeWidth="2"
                 />
             ))}
         </g>
