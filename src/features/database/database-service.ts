@@ -62,7 +62,19 @@ async function readDb(): Promise<Database> {
         }));
         db.racks = db.racks.map((r: Rack, i: number) => ({
             ...r,
+            devices: Array.isArray(r.devices) ? r.devices : [],
+            x: Number.isFinite(r.x) ? r.x : 0,
+            y: Number.isFinite(r.y) ? r.y : 0,
             order: r.order ?? i + 1,
+        }));
+        db.devices = db.devices.map((device: Device) => ({
+            ...device,
+            ports: Array.isArray(device.ports) ? device.ports : [],
+        }));
+        db.inventory = db.inventory.map((device: Device) => ({
+            ...device,
+            rackId: '',
+            ports: Array.isArray(device.ports) ? device.ports : [],
         }));
 
         cachedDb = db;
@@ -295,21 +307,55 @@ export const upsertDevice = createServerFn({ method: 'POST' })
         const { data: device } = ctx;
         const db = await readDb();
 
-        const index = db.devices.findIndex((d) => d.id === device.id);
-        if (index !== -1) {
-            db.devices[index] = device;
-        } else {
-            db.devices.push(device);
+        const rack = db.racks.find((r) => r.id === device.rackId);
+        if (!rack) {
+            throw new Error('Rack not found. Select a rack before adding an asset.');
         }
 
-        // Ensure the rack's device list is in sync
-        const rack = db.racks.find((r) => r.id === device.rackId);
-        if (rack && !rack.devices.includes(device.id)) {
-            rack.devices.push(device.id);
+        const normalizedDevice: Device = {
+            ...device,
+            rackId: rack.id,
+            ports: (device.ports || []).map((port) => ({
+                ...port,
+                deviceId: device.id,
+            })),
+        };
+
+        if (
+            normalizedDevice.uPosition < 1 ||
+            normalizedDevice.uHeight < 1 ||
+            normalizedDevice.uPosition + normalizedDevice.uHeight - 1 >
+                rack.uCapacity
+        ) {
+            throw new Error(
+                `Asset placement must fit within rack capacity (1-${rack.uCapacity}U).`,
+            );
+        }
+
+        const index = db.devices.findIndex((d) => d.id === normalizedDevice.id);
+        if (index !== -1) {
+            const previousRackId = db.devices[index].rackId;
+            if (previousRackId !== rack.id) {
+                const previousRack = db.racks.find(
+                    (candidate) => candidate.id === previousRackId,
+                );
+                if (previousRack) {
+                    previousRack.devices = previousRack.devices.filter(
+                        (id) => id !== normalizedDevice.id,
+                    );
+                }
+            }
+            db.devices[index] = normalizedDevice;
+        } else {
+            db.devices.push(normalizedDevice);
+        }
+
+        if (!rack.devices.includes(normalizedDevice.id)) {
+            rack.devices.push(normalizedDevice.id);
         }
 
         await writeDb(db);
-        return { success: true, device };
+        return { success: true, device: normalizedDevice };
     });
 
 /**
@@ -468,15 +514,27 @@ export const upsertInventoryAsset = createServerFn({ method: 'POST' })
 
         if (!db.inventory) db.inventory = [];
 
-        const index = db.inventory.findIndex((a) => a.id === asset.id);
+        const normalizedAsset: Device = {
+            ...asset,
+            rackId: '',
+            uPosition: 1,
+            ports: (asset.ports || []).map((port) => ({
+                ...port,
+                deviceId: asset.id,
+            })),
+        };
+
+        const index = db.inventory.findIndex(
+            (candidate) => candidate.id === normalizedAsset.id,
+        );
         if (index !== -1) {
-            db.inventory[index] = asset;
+            db.inventory[index] = normalizedAsset;
         } else {
-            db.inventory.push(asset);
+            db.inventory.push(normalizedAsset);
         }
 
         await writeDb(db);
-        return { success: true, device: asset };
+        return { success: true, device: normalizedAsset };
     });
 
 /**
@@ -574,21 +632,59 @@ export const createRack = createServerFn({ method: 'POST' })
         const db = await readDb();
         const crypto = await import('node:crypto');
 
+        const room = db.rooms.find((candidate) => candidate.id === data.roomId);
+        if (!room) {
+            throw new Error('Target room not found. Refresh the page and try again.');
+        }
+
+        const name = data.name.trim();
+        if (!name) {
+            throw new Error('Rack name is required.');
+        }
+
+        if (![42, 48, 52].includes(data.uCapacity)) {
+            throw new Error('Rack capacity must be 42U, 48U, or 52U.');
+        }
+
+        const roomRacks = db.racks.filter((rack) => rack.roomId === data.roomId);
+        const occupied = new Set(
+            roomRacks.map((rack) => `${rack.x},${rack.y}`),
+        );
+
+        let x = Number.isFinite(data.x) ? data.x : 0;
+        let y = Number.isFinite(data.y) ? data.y : 0;
+
+        if (occupied.has(`${x},${y}`)) {
+            let freePosition: { x: number; y: number } | null = null;
+            for (let row = 0; row < Math.max(1, room.height); row += 1) {
+                for (let column = 0; column < Math.max(1, room.width); column += 1) {
+                    if (!occupied.has(`${column},${row}`)) {
+                        freePosition = { x: column, y: row };
+                        break;
+                    }
+                }
+                if (freePosition) break;
+            }
+
+            if (!freePosition) {
+                throw new Error('No free rack position is available in this room.');
+            }
+
+            x = freePosition.x;
+            y = freePosition.y;
+        }
+
         const newRack: Rack = {
             id: `rk-${crypto.randomUUID()}`,
-            name: data.name,
+            name,
             roomId: data.roomId,
             uCapacity: data.uCapacity,
             devices: [],
-            x: data.x,
-            y: data.y,
+            x,
+            y,
             order:
-                (db.racks.filter((r) => r.roomId === data.roomId).length > 0
-                    ? Math.max(
-                          ...db.racks
-                              .filter((r) => r.roomId === data.roomId)
-                              .map((r) => r.order || 0),
-                      )
+                (roomRacks.length > 0
+                    ? Math.max(...roomRacks.map((rack) => rack.order || 0))
                     : 0) + 1,
         };
 

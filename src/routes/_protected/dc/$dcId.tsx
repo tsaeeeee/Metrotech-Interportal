@@ -142,6 +142,7 @@ function App() {
     // 2. Expansion State
     const [isAddingRoom, setIsAddingRoom] = useState(false);
     const [isAddingRack, setIsAddingRack] = useState(false);
+    const [rackTargetRoom, setRackTargetRoom] = useState<Room | null>(null);
 
     const currentData = useMemo(
         () => (viewMode === 'rack' ? rackData : roomData),
@@ -254,6 +255,13 @@ function App() {
     ]);
 
     const handleAddAsset = () => {
+        if (!rackData) return;
+        setSelectedDevice(undefined);
+        setDrawerMode('rack');
+        setDrawerOpen(true);
+    };
+
+    const handleAddMaster = () => {
         setSelectedDevice(undefined);
         setDrawerMode('inventory');
         setDrawerOpen(true);
@@ -330,12 +338,37 @@ function App() {
         [refreshData, loadRoom, loadHierarchy],
     );
 
+    const handleOpenAddRack = useCallback(
+        (roomId?: string) => {
+            const targetRoom =
+                (roomId
+                    ? hierarchy?.rooms.find((room) => room.id === roomId)
+                    : undefined) ||
+                roomData?.room ||
+                rackData?.room;
+
+            if (!targetRoom) {
+                console.error('Cannot add rack: no target room is selected');
+                return;
+            }
+
+            setRackTargetRoom(targetRoom);
+            setIsAddingRack(true);
+
+            if (roomData?.room.id !== targetRoom.id) {
+                void loadRoom(targetRoom.id, true);
+            }
+        },
+        [hierarchy, roomData, rackData, loadRoom],
+    );
+
     const handleRackCreated = useCallback(
         (newId?: string) => {
             setIsAddingRack(false);
+            setRackTargetRoom(null);
             if (newId) {
-                loadRack(newId);
-                loadHierarchy();
+                void loadRack(newId);
+                void loadHierarchy();
             } else {
                 refreshData();
             }
@@ -539,13 +572,19 @@ function App() {
                 // 1. Dropping an Inventory Blueprint onto the rack grid
                 if (active.data.current?.type === 'master') {
                     const blueprint = active.data.current.device;
-                    const newId = `new-${Date.now()}`;
+                    const newId = crypto.randomUUID();
                     const newAsset: Device = {
                         ...blueprint,
                         id: newId,
                         uPosition: finalU,
                         rackId: rackData?.rack.id || '',
                         status: 'active',
+                        ports: (blueprint.ports || []).map((port) => ({
+                            ...port,
+                            id: crypto.randomUUID(),
+                            deviceId: newId,
+                            status: 'up',
+                        })),
                     };
 
                     if (rackData) {
@@ -639,7 +678,9 @@ function App() {
                                 ) : viewMode === 'room' ? (
                                     <button
                                         type="button"
-                                        onClick={() => setIsAddingRack(true)}
+                                        onClick={() =>
+                                            handleOpenAddRack(roomData?.room.id)
+                                        }
                                         className={cn(
                                             'flex items-center gap-2 px-6 py-2.5 bg-(--sea-teal) text-white dark:text-zinc-900 rounded-xl text-sm font-black shadow-lg shadow-emerald-900/15 dark:shadow-teal-500/20 hover:brightness-110 transition-all active:scale-95 whitespace-nowrap border border-white/10 dark:border-white/5 cursor-pointer',
                                         )}
@@ -676,11 +717,14 @@ function App() {
                         />
                     )}
 
-                    {isAddingRack && roomData && (
+                    {isAddingRack && rackTargetRoom && (
                         <AddRackForm
-                            roomId={roomData.room.id}
-                            roomName={roomData.room.name}
-                            onCancel={() => setIsAddingRack(false)}
+                            roomId={rackTargetRoom.id}
+                            roomName={rackTargetRoom.name}
+                            onCancel={() => {
+                                setIsAddingRack(false);
+                                setRackTargetRoom(null);
+                            }}
                             onSuccess={handleRackCreated}
                         />
                     )}
@@ -698,7 +742,7 @@ function App() {
                             onLoadRoom={loadRoom}
                             onLoadRack={loadRack}
                             onAddRoom={() => setIsAddingRoom(true)}
-                            onAddRack={() => setIsAddingRack(true)}
+                            onAddRack={handleOpenAddRack}
                             onUpdateDatacenter={handleUpdateDatacenter}
                             onDeleteDatacenter={handleDeleteDatacenter}
                             onUpdateRoom={handleUpdateRoom}
@@ -752,6 +796,7 @@ function App() {
                         <aside className="space-y-6">
                             <AssetTray
                                 inventory={inventory}
+                                onAddMaster={handleAddMaster}
                                 onEditMaster={handleEditMaster}
                                 onDuplicateMaster={handleDuplicateMaster}
                                 onDeleteMaster={handleDeleteMaster}
@@ -911,16 +956,18 @@ const AddRoomForm = React.memo(
     }) => {
         const [newRoomName, setNewRoomName] = useState('');
         const [loading, setLoading] = useState(false);
+        const [error, setError] = useState('');
         const createRoomFn = useServerFn(createRoom);
 
         const handleCreateRoom = async (e: React.FormEvent) => {
             e.preventDefault();
             if (!newRoomName.trim()) return;
+            setError('');
             setLoading(true);
             try {
                 const result = await createRoomFn({
                     data: {
-                        name: newRoomName,
+                        name: newRoomName.trim(),
                         floorId: dcCode,
                         width: 12,
                         height: 10,
@@ -928,6 +975,12 @@ const AddRoomForm = React.memo(
                 } as never);
                 setNewRoomName('');
                 onSuccess(result.room.id);
+            } catch (err) {
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : 'Failed to create room',
+                );
             } finally {
                 setLoading(false);
             }
@@ -967,6 +1020,11 @@ const AddRoomForm = React.memo(
                             Cancel
                         </button>
                     </div>
+                    {error && (
+                        <div className="w-full md:basis-full px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-sm font-medium">
+                            {error}
+                        </div>
+                    )}
                 </form>
             </div>
         );
@@ -988,24 +1046,32 @@ const AddRackForm = React.memo(
         const [newRackName, setNewRackName] = useState('');
         const [newRackCapacity, setNewRackCapacity] = useState<number>(42);
         const [loading, setLoading] = useState(false);
+        const [error, setError] = useState('');
         const createRackFn = useServerFn(createRack);
 
         const handleCreateRack = async (e: React.FormEvent) => {
             e.preventDefault();
             if (!newRackName.trim()) return;
+            setError('');
             setLoading(true);
             try {
                 const result = await createRackFn({
                     data: {
-                        name: newRackName,
-                        roomId: roomId,
+                        name: newRackName.trim(),
+                        roomId,
                         uCapacity: newRackCapacity,
-                        x: Math.floor(Math.random() * 8),
-                        y: Math.floor(Math.random() * 8),
+                        x: 0,
+                        y: 0,
                     },
                 } as never);
                 setNewRackName('');
                 onSuccess(result.rack.id);
+            } catch (err) {
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : 'Failed to create rack',
+                );
             } finally {
                 setLoading(false);
             }
@@ -1074,6 +1140,11 @@ const AddRackForm = React.memo(
                             Cancel
                         </button>
                     </div>
+                    {error && (
+                        <div className="w-full md:basis-full px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-sm font-medium">
+                            {error}
+                        </div>
+                    )}
                 </form>
             </div>
         );

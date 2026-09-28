@@ -42,7 +42,7 @@ interface InfrastructureNavigatorProps {
     onLoadRoom: (id: string) => void;
     onLoadRack: (id: string) => void;
     onAddRoom: () => void;
-    onAddRack: () => void;
+    onAddRack: (roomId?: string) => void;
     onUpdateDatacenter: (name: string, location: string) => Promise<void>;
     onDeleteDatacenter: () => Promise<void>;
     onUpdateRoom: (id: string, name: string) => Promise<void>;
@@ -382,16 +382,9 @@ export function InfrastructureNavigator({
                                                                         e,
                                                                     ) => {
                                                                         e.stopPropagation();
-                                                                        if (
-                                                                            viewMode !==
-                                                                                'room' ||
-                                                                            currentRoomId !==
-                                                                                room.id
-                                                                        )
-                                                                            onLoadRoom(
-                                                                                room.id,
-                                                                            );
-                                                                        onAddRack();
+                                                                        onAddRack(
+                                                                            room.id,
+                                                                        );
                                                                     }}
                                                                     className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-tight text-(--sea-ink-soft) hover:text-(--sea-ink) hover:bg-black/5 dark:hover:bg-zinc-800 transition-all cursor-pointer mt-1"
                                                                 >
