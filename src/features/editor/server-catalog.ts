@@ -4,6 +4,8 @@ export type ServerFrontProfile =
     | 'bison'
     | 'crow'
     | 'cricket'
+    | 'supermicro'
+    | 'supermicro-gpu'
     | 'generic';
 
 export interface ServerCatalogItem {
@@ -76,7 +78,7 @@ export const SERVER_CATALOG: ServerCatalogItem[] = [
         brandHint: 'Jabil',
         bayCount: 6,
         profile: 'crow',
-        defaultUHeight: 1,
+        defaultUHeight: 2,
     },
     {
         value: '2x6 Crow 128C NVME-Q 1T',
@@ -85,7 +87,7 @@ export const SERVER_CATALOG: ServerCatalogItem[] = [
         brandHint: 'Jabil',
         bayCount: 6,
         profile: 'crow',
-        defaultUHeight: 1,
+        defaultUHeight: 2,
     },
     {
         value: '2x7 Crow 128C NVME-Q 512G 100GE',
@@ -94,7 +96,7 @@ export const SERVER_CATALOG: ServerCatalogItem[] = [
         brandHint: 'Jabil',
         bayCount: 7,
         profile: 'crow',
-        defaultUHeight: 1,
+        defaultUHeight: 2,
     },
     {
         value: 'Ciara 1x3 Cricket NVME-K 256G VPU-gen1',
@@ -132,6 +134,24 @@ export const SERVER_CATALOG: ServerCatalogItem[] = [
         profile: 'bison',
         defaultUHeight: 1,
     },
+    {
+        value: 'Supermicro 2U Server',
+        label: 'Supermicro 2U Server',
+        family: 'Supermicro',
+        brandHint: 'CIARA',
+        bayCount: 12,
+        profile: 'supermicro',
+        defaultUHeight: 2,
+    },
+    {
+        value: 'Supermicro GPU 4U Server',
+        label: 'Supermicro GPU 4U Server',
+        family: 'Supermicro GPU',
+        brandHint: 'CIARA',
+        bayCount: 8,
+        profile: 'supermicro-gpu',
+        defaultUHeight: 4,
+    },
 ];
 
 export function getServerCatalogItem(
@@ -139,4 +159,28 @@ export function getServerCatalogItem(
 ): ServerCatalogItem | undefined {
     if (!equipmentType) return undefined;
     return SERVER_CATALOG.find((item) => item.value === equipmentType);
+}
+
+
+export function inferServerRackHeight(
+    equipmentType?: string,
+    fallback = 1,
+): number {
+    if (!equipmentType) return fallback;
+
+    const catalogItem = getServerCatalogItem(equipmentType);
+    if (catalogItem) return catalogItem.defaultUHeight;
+
+    const prefix = equipmentType.match(/^(\d+)x/i);
+    if (prefix) {
+        const uHeight = Number(prefix[1]);
+        if (Number.isFinite(uHeight) && uHeight > 0 && uHeight <= 12) {
+            return uHeight;
+        }
+    }
+
+    if (/supermicro.*gpu/i.test(equipmentType)) return 4;
+    if (/supermicro/i.test(equipmentType)) return 2;
+
+    return fallback;
 }
