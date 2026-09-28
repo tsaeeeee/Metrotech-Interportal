@@ -13,12 +13,12 @@ Metrotech Interportal is a lightweight Data Center Infrastructure Management (DC
 - **Styling:** Tailwind CSS 4
 - **Drag & Drop:** dnd-kit
 - **Icons:** Lucide React
-- **Authentication / Datacenters:** SQLite via better-sqlite3
-- **DCIM Inventory Data:** local JSON database
+- **Database:** SQLite via better-sqlite3
+- **Persistence:** single local SQLite database with automatic legacy JSON migration
 - **Lint / Format:** Biome
 - **Tests:** Vitest + Testing Library
 
-> The project currently uses a hybrid local-storage model: SQLite for authentication / datacenter records and JSON for rack inventory data. This keeps the current application compatible while the data layer is progressively consolidated.
+> The current data layer is SQLite-only. Existing `data/db.json` content is imported automatically once into SQLite on startup so older local environments can move forward without manual conversion.
 
 ## Local Development
 
@@ -72,13 +72,13 @@ On first use the application creates local data under:
 ```text
 data/
 ├── db.sqlite
-└── db.json
+└── db.json  # legacy source; imported once if present
 ```
 
 These files are intentionally ignored by Git.
 
-- `db.sqlite`: users, sessions, and datacenters
-- `db.json`: rooms, racks, devices, inventory blueprints, and connections
+- `db.sqlite`: users, sessions, datacenters, rooms, racks, devices, inventory blueprints, and connections
+- `db.json`: legacy compatibility only; no longer used after migration
 
 ## Application Flow
 
