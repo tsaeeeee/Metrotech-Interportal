@@ -1,18 +1,16 @@
 import { useServerFn } from '@tanstack/react-start';
 import {
     Cable,
-    ChevronDown,
-    Database,
     Info,
     Layout,
-    MoreHorizontal,
     Network,
     Save,
     Server,
     Trash2,
+    Wind,
     Zap,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PortFaceplate } from '#/features/connectivity/components/port-faceplate';
 import {
     connectPorts,
@@ -24,7 +22,13 @@ import {
 } from '#/features/database/database-service';
 import { createId } from '#/lib/id';
 import { cn } from '#/lib/utils';
-import type { Connection, Device, Port } from '#/types/schema';
+import type {
+    AssetCategory,
+    Connection,
+    Device,
+    OtherAssetKind,
+    Port,
+} from '#/types/schema';
 
 interface AssetFormProps {
     mode?: 'inventory' | 'rack';
@@ -37,67 +41,117 @@ interface AssetFormProps {
     onUpdateConnections: () => void;
 }
 
-const BASE_PRESETS = [
+type OtherPreset = {
+    key: string;
+    name: string;
+    kind: OtherAssetKind;
+    uHeight: number;
+    type: Device['type'];
+    icon: typeof Cable;
+};
+
+const OTHER_PRESETS: OtherPreset[] = [
     {
-        name: 'Standard Server',
-        type: 'server' as const,
-        uHeight: 2,
-        icon: Server,
-        color: '#2ecc71',
-        ports: 8,
-    },
-    {
-        name: 'Core Switch',
-        type: 'network' as const,
+        key: 'cable-management-1u',
+        name: 'Cable Management 1U',
+        kind: 'cable-management',
         uHeight: 1,
-        icon: Network,
-        color: '#3498db',
-        ports: 24,
+        type: 'cable',
+        icon: Cable,
     },
     {
-        name: 'Storage Array',
-        type: 'storage' as const,
-        uHeight: 4,
-        icon: Database,
-        color: '#9b59b6',
-        ports: 4,
+        key: 'blanking-panel-1u',
+        name: 'Blanking Panel 1U',
+        kind: 'blanking-panel',
+        uHeight: 1,
+        type: 'panel',
+        icon: Layout,
+    },
+    {
+        key: 'blanking-panel-2u',
+        name: 'Blanking Panel 2U',
+        kind: 'blanking-panel',
+        uHeight: 2,
+        type: 'panel',
+        icon: Layout,
+    },
+    {
+        key: 'blanking-panel-10u',
+        name: 'Blanking Panel 10U',
+        kind: 'blanking-panel',
+        uHeight: 10,
+        type: 'panel',
+        icon: Layout,
+    },
+    {
+        key: 'blanking-panel-12u',
+        name: 'Blanking Panel 12U',
+        kind: 'blanking-panel',
+        uHeight: 12,
+        type: 'panel',
+        icon: Layout,
+    },
+    {
+        key: 'geist-switchair-1u',
+        name: 'Vertiv Geist SwitchAir 1U',
+        kind: 'geist-switchair',
+        uHeight: 1,
+        type: 'airflow',
+        icon: Wind,
+    },
+    {
+        key: 'geist-switchair-2u',
+        name: 'Vertiv Geist SwitchAir 2U',
+        kind: 'geist-switchair',
+        uHeight: 2,
+        type: 'airflow',
+        icon: Wind,
     },
 ];
 
-const OTHER_PRESETS = [
-    {
-        name: 'Fixed 1U',
-        type: 'cable' as const,
+function deriveCategory(device?: Device): AssetCategory {
+    if (device?.category) return device.category;
+    if (device?.type === 'network') return 'switch';
+    if (device?.type === 'server') return 'server';
+    return 'other';
+}
+
+function makePorts(
+    deviceId: string,
+    category: AssetCategory,
+    existing: Port[] = [],
+): Port[] {
+    if (existing.length > 0) return existing;
+    if (category === 'other') return [];
+
+    const count = category === 'switch' ? 24 : 8;
+    return Array.from({ length: count }, (_, index) => ({
+        id: createId(),
+        name: `${category === 'switch' ? 'SW' : 'SRV'}-P${index + 1}`,
+        type: 'RJ45',
+        deviceId,
+        status: 'up',
+    }));
+}
+
+function createBlankAsset(rackId: string, mode: 'inventory' | 'rack'): Device {
+    const id = createId();
+    return {
+        id,
+        name: '',
+        rackId: mode === 'rack' ? rackId : '',
         uHeight: 1,
-        icon: Cable,
-        color: '#94a3b8',
-        ports: 0,
-    },
-    {
-        name: 'Patch Panel 1U',
-        type: 'panel' as const,
-        uHeight: 1,
-        icon: Layout,
-        color: '#475569',
-        ports: 24,
-    },
-    {
-        name: 'Patch Panel 2U',
-        type: 'panel' as const,
-        uHeight: 2,
-        icon: Layout,
-        color: '#475569',
-        ports: 48,
-    },
-    {
-        name: 'Custom Height',
-        type: 'panel' as const,
-        uHeight: 1,
-        icon: Layout,
-        color: '#64748b',
-        ports: 0,
-    },
-];
+        uPosition: 1,
+        type: 'network',
+        depth: 'full',
+        category: 'switch',
+        brand: '',
+        equipmentType: '',
+        serialNumber: '',
+        status: 'active',
+        ports: makePorts(id, 'switch'),
+    };
+}
 
 export function AssetForm({
     mode = 'rack',
@@ -115,66 +169,130 @@ export function AssetForm({
     const deleteDeviceFn = useServerFn(deleteDevice);
     const connectPortsFn = useServerFn(connectPorts);
     const disconnectPortsFn = useServerFn(disconnectPorts);
+
     const [activeTab, setActiveTab] = useState<'info' | 'connections'>('info');
     const [isPatching, setIsPatching] = useState<Port | null>(null);
-    const [showOthers, setShowOthers] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
-    const [formData, setFormData] = useState<Device>({
-        id: createId(),
-        name: '',
-        rackId: mode === 'rack' ? rackId : '',
-        uHeight: 1,
-        uPosition: 1,
-        type: 'server',
-        depth: 'full',
-        status: 'active',
-        assetTag: '',
-        serialNumber: '',
-        model: '',
-        manufacturer: '',
-        ports: [],
-    });
+    const [formData, setFormData] = useState<Device>(() =>
+        createBlankAsset(rackId, mode),
+    );
+
+    const category = deriveCategory(formData);
+    const isOther = category === 'other';
+
+    const activeOtherPreset = useMemo(
+        () =>
+            OTHER_PRESETS.find(
+                (preset) =>
+                    preset.kind === formData.otherKind &&
+                    preset.uHeight === formData.uHeight,
+            ),
+        [formData.otherKind, formData.uHeight],
+    );
 
     useEffect(() => {
         if (device) {
-            setFormData(device);
+            const normalizedCategory = deriveCategory(device);
+            setFormData({
+                ...device,
+                category: normalizedCategory,
+                brand: device.brand ?? device.manufacturer ?? '',
+                equipmentType: device.equipmentType ?? device.model ?? '',
+                serialNumber: device.serialNumber ?? '',
+                rackId: mode === 'rack' ? rackId : '',
+                ports: makePorts(
+                    device.id,
+                    normalizedCategory,
+                    device.ports || [],
+                ),
+            });
             return;
         }
 
-        setFormData((prev) => ({
-            ...prev,
-            rackId: mode === 'rack' ? rackId : '',
-            uPosition: 1,
-        }));
+        setFormData(createBlankAsset(rackId, mode));
     }, [device, mode, rackId]);
 
-    const applyPreset = (
-        preset: (typeof BASE_PRESETS | typeof OTHER_PRESETS)[0],
-    ) => {
-        const dummyPorts: Port[] = Array.from(
-            { length: preset.ports },
-            (_, i) => ({
-                id: createId(),
-                name: `${preset.type.toUpperCase()}-P${i + 1}`,
-                type: 'RJ45',
-                deviceId: formData.id,
-                status: 'up',
-            }),
-        );
+    const selectCategory = (nextCategory: AssetCategory) => {
+        setError('');
+        setFormData((prev) => {
+            if (nextCategory === 'other') {
+                const preset = OTHER_PRESETS[0];
+                return {
+                    ...prev,
+                    category: 'other',
+                    name: preset.name,
+                    type: preset.type,
+                    otherKind: preset.kind,
+                    uHeight: preset.uHeight,
+                    brand: undefined,
+                    equipmentType: undefined,
+                    serialNumber: undefined,
+                    assetTag: undefined,
+                    manufacturer: undefined,
+                    model: undefined,
+                    ports: [],
+                };
+            }
 
-        setFormData((prev) => ({
-            ...prev,
-            name: preset.name,
-            type: preset.type as Device['type'],
-            uHeight: preset.uHeight,
-            ports: dummyPorts,
-        }));
-        setShowOthers(false);
+            return {
+                ...prev,
+                category: nextCategory,
+                type: nextCategory === 'switch' ? 'network' : 'server',
+                otherKind: undefined,
+                uHeight:
+                    nextCategory === 'switch'
+                        ? 1
+                        : prev.category === 'server'
+                          ? prev.uHeight
+                          : 2,
+                brand: prev.category === 'other' ? '' : prev.brand || '',
+                equipmentType:
+                    prev.category === 'other' ? '' : prev.equipmentType || '',
+                serialNumber:
+                    prev.category === 'other' ? '' : prev.serialNumber || '',
+                ports: makePorts(
+                    prev.id,
+                    nextCategory,
+                    prev.category === 'other' ? [] : prev.ports || [],
+                ),
+            };
+        });
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const selectOtherPreset = (preset: OtherPreset) => {
+        setFormData((prev) => ({
+            ...prev,
+            category: 'other',
+            name: preset.name,
+            type: preset.type,
+            otherKind: preset.kind,
+            uHeight: preset.uHeight,
+            brand: undefined,
+            equipmentType: undefined,
+            serialNumber: undefined,
+            assetTag: undefined,
+            manufacturer: undefined,
+            model: undefined,
+            ports: [],
+        }));
+    };
+
+    const handleChange = (
+        event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+    ) => {
+        const { name, value } = event.target;
+        setFormData((prev) => ({
+            ...prev,
+            [name]:
+                name === 'uHeight' || name === 'uPosition'
+                    ? Number(value)
+                    : value,
+        }));
+    };
+
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
         setError('');
         setSaving(true);
 
@@ -183,9 +301,42 @@ export function AssetForm({
                 throw new Error('Select a rack before adding an asset.');
             }
 
+            if (!formData.name.trim()) {
+                throw new Error('Asset name is required.');
+            }
+
+            if (!isOther) {
+                if (!formData.brand?.trim()) {
+                    throw new Error('Brand is required.');
+                }
+                if (!formData.equipmentType?.trim()) {
+                    throw new Error('Type is required.');
+                }
+                if (!formData.serialNumber?.trim()) {
+                    throw new Error('Serial number is required.');
+                }
+            }
+
             const payload: Device = {
                 ...formData,
+                name: formData.name.trim(),
                 rackId: mode === 'rack' ? rackId : '',
+                category,
+                brand: isOther ? undefined : formData.brand?.trim(),
+                equipmentType: isOther
+                    ? undefined
+                    : formData.equipmentType?.trim(),
+                serialNumber: isOther
+                    ? undefined
+                    : formData.serialNumber?.trim(),
+                otherKind: isOther ? formData.otherKind : undefined,
+                assetTag: undefined,
+                manufacturer: undefined,
+                model: undefined,
+                status: 'active',
+                ports: isOther
+                    ? []
+                    : makePorts(formData.id, category, formData.ports),
             };
 
             const result =
@@ -207,38 +358,25 @@ export function AssetForm({
 
     const handleDelete = async () => {
         if (!device?.id) return;
-        const msg =
+
+        const message =
             mode === 'inventory'
-                ? 'Are you sure you want to delete this master blueprint? This will not affect existing rack instances.'
-                : 'Are you sure you want to delete this asset from the rack?';
+                ? 'Delete this asset from the library? Existing rack assets will stay in place.'
+                : 'Delete this asset from the rack?';
 
-        if (confirm(msg)) {
-            const result =
-                mode === 'inventory'
-                    ? await deleteInventoryFn({ data: device.id })
-                    : await deleteDeviceFn({ data: device.id });
+        if (!confirm(message)) return;
 
-            if (result.success) {
-                onDelete(device.id);
-            }
-        }
-    };
+        const result =
+            mode === 'inventory'
+                ? await deleteInventoryFn({ data: device.id })
+                : await deleteDeviceFn({ data: device.id });
 
-    const handleChange = (
-        e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-    ) => {
-        const { name, value } = e.target;
-        setFormData((prev) => ({
-            ...prev,
-            [name]:
-                name === 'uHeight' || name === 'uPosition'
-                    ? Number(value)
-                    : value,
-        }));
+        if (result.success) onDelete(device.id);
     };
 
     const handleConnect = async (targetPortId: string) => {
         if (!isPatching) return;
+
         try {
             const result = await connectPortsFn({
                 data: {
@@ -247,12 +385,13 @@ export function AssetForm({
                     type: 'copper',
                 },
             });
+
             if (result.success) {
                 onUpdateConnections();
                 setIsPatching(null);
             }
-        } catch (error) {
-            console.error('Failed to connect:', error);
+        } catch (connectionError) {
+            console.error('Failed to connect:', connectionError);
             alert('Failed to connect ports. They might already be occupied.');
         }
     };
@@ -260,177 +399,119 @@ export function AssetForm({
     const handleDisconnect = async (connectionId: string) => {
         try {
             const result = await disconnectPortsFn({ data: connectionId });
-            if (result.success) {
-                onUpdateConnections();
-            }
-        } catch (error) {
-            console.error('Failed to disconnect:', error);
+            if (result.success) onUpdateConnections();
+        } catch (connectionError) {
+            console.error('Failed to disconnect:', connectionError);
         }
     };
 
     return (
-        <div className="space-y-6">
-            {/* Template Selector Bar (Visual Preset Bar) */}
-            {!device && (
-                <div className="space-y-3">
-                    <span className="text-[10px] font-bold text-(--sea-ink-soft) opacity-60 uppercase tracking-widest pl-1 leading-none">
-                        Starting Point
-                    </span>
-                    <div className="grid grid-cols-4 gap-2 relative">
-                        {BASE_PRESETS.map((preset) => (
-                            <button
-                                key={preset.name}
-                                type="button"
-                                onClick={() => applyPreset(preset)}
-                                className={cn(
-                                    'flex flex-col items-center justify-center p-3 rounded-xl border border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5 transition-all hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/10 dark:hover:border-white/20 active:scale-95 group',
-                                    formData.type === preset.type &&
-                                        'bg-(--sea-teal)/10 border-(--sea-teal)/40 text-(--sea-teal)',
-                                )}
-                            >
-                                <preset.icon
-                                    size={20}
-                                    className={cn(
-                                        'mb-2 opacity-40 group-hover:opacity-100 transition-opacity',
-                                        formData.type === preset.type &&
-                                            'opacity-100',
-                                    )}
-                                />
-                                <span
-                                    className={cn(
-                                        'text-[9px] font-bold uppercase tracking-tight text-(--sea-ink-soft) opacity-60 group-hover:text-(--sea-ink) group-hover:opacity-100 transition-all',
-                                        formData.type === preset.type &&
-                                            'text-(--sea-teal)',
-                                    )}
-                                >
-                                    {preset.type}
-                                </span>
-                            </button>
-                        ))}
+        <div className="space-y-5">
+            <div className="space-y-2">
+                <span className="asset-section-label">Asset Category</span>
+                <div className="grid grid-cols-3 gap-2">
+                    {[
+                        {
+                            value: 'switch' as const,
+                            label: 'Switch',
+                            icon: Network,
+                        },
+                        {
+                            value: 'server' as const,
+                            label: 'Server',
+                            icon: Server,
+                        },
+                        {
+                            value: 'other' as const,
+                            label: 'Others',
+                            icon: Layout,
+                        },
+                    ].map((item) => (
+                        <button
+                            key={item.value}
+                            type="button"
+                            onClick={() => selectCategory(item.value)}
+                            className={cn(
+                                'asset-choice',
+                                category === item.value &&
+                                    'asset-choice-active',
+                            )}
+                        >
+                            <item.icon size={20} />
+                            <span>{item.label}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
 
-                        {/* Others Menu */}
-                        <div className="relative">
+            {isOther && (
+                <div className="space-y-2">
+                    <span className="asset-section-label">Component</span>
+                    <div className="grid grid-cols-2 gap-2">
+                        {OTHER_PRESETS.map((preset) => (
                             <button
+                                key={preset.key}
                                 type="button"
-                                onClick={() => setShowOthers(!showOthers)}
+                                onClick={() => selectOtherPreset(preset)}
                                 className={cn(
-                                    'w-full h-full flex flex-col items-center justify-center p-3 rounded-xl border border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5 transition-all hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/10 dark:hover:border-white/20 active:scale-95 group',
-                                    (formData.type === 'cable' ||
-                                        formData.type === 'panel') &&
-                                        'bg-(--sea-teal)/10 border-(--sea-teal)/40 text-(--sea-teal)',
+                                    'asset-other-choice',
+                                    activeOtherPreset?.key === preset.key &&
+                                        'asset-other-choice-active',
                                 )}
                             >
-                                <MoreHorizontal
-                                    size={20}
-                                    className={cn(
-                                        'mb-2 opacity-40 group-hover:opacity-100 transition-opacity',
-                                        (formData.type === 'cable' ||
-                                            formData.type === 'panel') &&
-                                            'opacity-100',
-                                    )}
-                                />
-                                <div className="flex items-center gap-1">
-                                    <span
-                                        className={cn(
-                                            'text-[9px] font-bold uppercase tracking-tight text-(--sea-ink-soft) opacity-60 group-hover:text-(--sea-ink) group-hover:opacity-100 transition-all',
-                                            (formData.type === 'cable' ||
-                                                formData.type === 'panel') &&
-                                                'text-(--sea-teal)',
-                                        )}
-                                    >
-                                        Others
-                                    </span>
-                                    <ChevronDown
-                                        size={10}
-                                        className="opacity-40"
-                                    />
+                                <preset.icon size={16} />
+                                <div className="min-w-0 text-left">
+                                    <div className="font-bold truncate">
+                                        {preset.name}
+                                    </div>
+                                    <div className="text-[10px] opacity-65">
+                                        {preset.uHeight}U
+                                    </div>
                                 </div>
                             </button>
-
-                            {showOthers && (
-                                <>
-                                    <button
-                                        type="button"
-                                        className="fixed inset-0 z-40 cursor-default"
-                                        onClick={() => setShowOthers(false)}
-                                        aria-label="Close menu"
-                                    />
-                                    <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-100">
-                                        {OTHER_PRESETS.map((preset) => (
-                                            <button
-                                                key={preset.name}
-                                                type="button"
-                                                onClick={() =>
-                                                    applyPreset(preset)
-                                                }
-                                                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-left group"
-                                            >
-                                                <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-(--sea-teal) transition-colors">
-                                                    <preset.icon size={16} />
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                                                        {preset.name}
-                                                    </span>
-                                                    <span className="text-[9px] text-zinc-400 font-medium uppercase tracking-wider">
-                                                        {preset.type}
-                                                    </span>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-                        </div>
+                        ))}
                     </div>
                 </div>
             )}
 
-            {/* Tabs */}
-            <div className="flex bg-black/5 dark:bg-black/40 p-1 rounded-xl border border-black/10 dark:border-white/5">
+            <div className="flex bg-(--surface-muted) p-1 rounded-lg border border-(--line)">
                 <button
                     type="button"
                     onClick={() => setActiveTab('info')}
                     className={cn(
-                        'flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-bold transition-all',
+                        'flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-bold transition-all',
                         activeTab === 'info'
-                            ? 'bg-white shadow-sm dark:bg-white/10 text-(--sea-ink)'
-                            : 'text-(--sea-ink-soft) opacity-60 hover:opacity-100',
+                            ? 'bg-(--surface-strong) text-(--sea-ink) shadow-sm'
+                            : 'text-(--sea-ink-soft) hover:text-(--sea-ink)',
                     )}
                 >
-                    <Info size={16} />{' '}
-                    {mode === 'inventory' ? 'Design' : 'Asset Info'}
+                    <Info size={15} /> Asset Info
                 </button>
-                {mode !== 'inventory' && (
+                {mode === 'rack' && (
                     <button
                         type="button"
                         onClick={() => setActiveTab('connections')}
-                        disabled={!device}
+                        disabled={!device || isOther}
                         className={cn(
-                            'flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-bold transition-all',
+                            'flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-bold transition-all',
                             activeTab === 'connections'
-                                ? 'bg-white shadow-sm dark:bg-white/10 text-(--sea-ink)'
-                                : 'text-(--sea-ink-soft) opacity-60 hover:opacity-100',
-                            !device && 'opacity-20 cursor-not-allowed',
+                                ? 'bg-(--surface-strong) text-(--sea-ink) shadow-sm'
+                                : 'text-(--sea-ink-soft) hover:text-(--sea-ink)',
+                            (!device || isOther) &&
+                                'opacity-35 cursor-not-allowed',
                         )}
                     >
-                        <Cable size={16} /> Connectivity
+                        <Cable size={15} /> Connectivity
                     </button>
                 )}
             </div>
 
             {activeTab === 'info' ? (
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-5">
                     <div className="space-y-4">
-                        {/* Basic Info */}
                         <div>
-                            <label
-                                htmlFor="name"
-                                className="block text-sm font-bold text-(--sea-ink-soft) opacity-60 mb-1"
-                            >
-                                {mode === 'inventory'
-                                    ? 'Blueprint Name'
-                                    : 'Device Name'}
+                            <label htmlFor="name" className="asset-label">
+                                Asset Name
                             </label>
                             <input
                                 required
@@ -439,370 +520,308 @@ export function AssetForm({
                                 name="name"
                                 value={formData.name}
                                 onChange={handleChange}
-                                className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
-                                placeholder={
-                                    mode === 'inventory'
-                                        ? 'e.g. Standard Web Server Tier A'
-                                        : 'e.g. SF-WEB-01'
-                                }
+                                readOnly={isOther}
+                                className={cn(
+                                    'asset-control',
+                                    isOther && 'asset-control-readonly',
+                                )}
+                                placeholder="e.g. Core Switch A"
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label
-                                    htmlFor="type"
-                                    className="block text-sm font-bold text-(--sea-ink-soft) opacity-60 mb-1"
-                                >
-                                    Asset Class
-                                </label>
-                                <select
-                                    id="type"
-                                    name="type"
-                                    value={formData.type}
-                                    onChange={handleChange}
-                                    className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
-                                >
-                                    <option value="server">Server</option>
-                                    <option value="network">
-                                        Network/Switch
-                                    </option>
-                                    <option value="storage">
-                                        Storage Array
-                                    </option>
-                                    <option value="pdu">PDU / Power</option>
-                                    <option value="cable">
-                                        Cable Management
-                                    </option>
-                                    <option value="panel">
-                                        Custom Height / Blank
-                                    </option>
-                                </select>
-                            </div>
-                            <div>
-                                <label
-                                    htmlFor="uHeight"
-                                    className="block text-sm font-bold text-(--sea-ink-soft) opacity-60 mb-1"
-                                >
-                                    Height (U Count)
-                                </label>
-                                <input
-                                    required
-                                    id="uHeight"
-                                    type="number"
-                                    min="1"
-                                    max="10"
-                                    name="uHeight"
-                                    value={formData.uHeight}
-                                    onChange={handleChange}
-                                    className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
-                                />
-                            </div>
-                        </div>
-
-                        {mode === 'rack' && (
-                            <div className="p-4 rounded-xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 space-y-4">
-                                <h4 className="text-[10px] font-bold text-(--sea-ink-soft) opacity-60 uppercase tracking-widest flex items-center gap-2">
-                                    <Layout size={12} /> Deployment Position
-                                </h4>
-                                <div className="grid grid-cols-2 gap-4">
+                        {!isOther && (
+                            <>
+                                <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label
-                                            htmlFor="uPosition"
-                                            className="block text-[10px] text-(--sea-ink-soft) opacity-60 mb-1"
+                                            htmlFor="brand"
+                                            className="asset-label"
                                         >
-                                            Starting U
+                                            Brand
                                         </label>
                                         <input
                                             required
-                                            id="uPosition"
-                                            type="number"
-                                            min="1"
-                                            max="42"
-                                            name="uPosition"
-                                            value={formData.uPosition}
+                                            id="brand"
+                                            type="text"
+                                            name="brand"
+                                            value={formData.brand || ''}
                                             onChange={handleChange}
-                                            className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
+                                            className="asset-control"
+                                            placeholder={
+                                                category === 'switch'
+                                                    ? 'Cisco, Juniper...'
+                                                    : 'Dell, HPE...'
+                                            }
                                         />
                                     </div>
                                     <div>
                                         <label
-                                            htmlFor="status"
-                                            className="block text-[10px] text-(--sea-ink-soft) opacity-60 mb-1"
+                                            htmlFor="equipmentType"
+                                            className="asset-label"
                                         >
-                                            Operation Status
+                                            Type
                                         </label>
-                                        <select
-                                            id="status"
-                                            name="status"
-                                            value={formData.status}
+                                        <input
+                                            required
+                                            id="equipmentType"
+                                            type="text"
+                                            name="equipmentType"
+                                            value={
+                                                formData.equipmentType || ''
+                                            }
                                             onChange={handleChange}
-                                            className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
-                                        >
-                                            <option value="active">
-                                                Active
-                                            </option>
-                                            <option value="maintenance">
-                                                Maintenance
-                                            </option>
-                                            <option value="storage">
-                                                Storage
-                                            </option>
-                                            <option value="decommissioned">
-                                                Decommissioned
-                                            </option>
-                                        </select>
+                                            className="asset-control"
+                                            placeholder={
+                                                category === 'switch'
+                                                    ? 'QFX5120...'
+                                                    : 'PowerEdge R760...'
+                                            }
+                                        />
                                     </div>
                                 </div>
-                            </div>
+
+                                <div>
+                                    <label
+                                        htmlFor="serialNumber"
+                                        className="asset-label"
+                                    >
+                                        Serial Number
+                                    </label>
+                                    <input
+                                        required
+                                        id="serialNumber"
+                                        type="text"
+                                        name="serialNumber"
+                                        value={formData.serialNumber || ''}
+                                        onChange={handleChange}
+                                        className="asset-control font-mono"
+                                        placeholder="Serial number"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label
+                                        htmlFor="uHeight"
+                                        className="asset-label"
+                                    >
+                                        Rack Height
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            required
+                                            id="uHeight"
+                                            type="number"
+                                            min="1"
+                                            max="12"
+                                            name="uHeight"
+                                            value={formData.uHeight}
+                                            onChange={handleChange}
+                                            className="asset-control pr-12"
+                                        />
+                                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-(--sea-ink-soft)">
+                                            U
+                                        </span>
+                                    </div>
+                                </div>
+                            </>
                         )}
 
-                        <hr className="border-white/5 my-4" />
-
-                        {/* Metadata */}
-                        <div>
-                            <label
-                                htmlFor="assetTag"
-                                className="flex items-center gap-2 text-sm font-medium text-white/60 mb-1"
-                            >
-                                {mode === 'inventory'
-                                    ? 'Master Asset Tag Prefix'
-                                    : 'Asset Tag'}{' '}
-                                <Info size={14} className="text-(--sea-teal)" />
-                            </label>
-                            <input
-                                id="assetTag"
-                                type="text"
-                                name="assetTag"
-                                value={formData.assetTag}
-                                onChange={handleChange}
-                                className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
-                                placeholder="TAG-XXXXX"
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
+                        {mode === 'rack' && (
+                            <div className="ops-subtle rounded-lg p-4">
                                 <label
-                                    htmlFor="manufacturer"
-                                    className="block text-sm font-medium text-white/60 mb-1"
+                                    htmlFor="uPosition"
+                                    className="asset-label"
                                 >
-                                    Manufacturer
+                                    Starting U
                                 </label>
                                 <input
-                                    id="manufacturer"
-                                    type="text"
-                                    name="manufacturer"
-                                    value={formData.manufacturer || ''}
+                                    required
+                                    id="uPosition"
+                                    type="number"
+                                    min="1"
+                                    max="52"
+                                    name="uPosition"
+                                    value={formData.uPosition}
                                     onChange={handleChange}
-                                    className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
-                                    placeholder="Dell, HP, Cisco..."
+                                    className="asset-control"
                                 />
+                                <p className="mt-2 text-[11px] text-(--sea-ink-soft)">
+                                    Occupancy and rack capacity are validated
+                                    when the asset is saved.
+                                </p>
                             </div>
-                            <div>
-                                <label
-                                    htmlFor="model"
-                                    className="block text-sm font-medium text-white/60 mb-1"
-                                >
-                                    Model
-                                </label>
-                                <input
-                                    id="model"
-                                    type="text"
-                                    name="model"
-                                    value={formData.model || ''}
-                                    onChange={handleChange}
-                                    className="w-full bg-black/5 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-lg px-4 py-2 text-(--sea-ink) focus:outline-none focus:ring-2 focus:ring-(--sea-teal) placeholder:text-(--sea-ink-soft)/40"
-                                    placeholder="PowerEdge, ProLiant..."
-                                />
-                            </div>
-                        </div>
+                        )}
                     </div>
 
-                    <div className="flex flex-col gap-3 pt-6 border-t border-zinc-200 dark:border-white/10">
-                        {error && (
-                            <div className="px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-sm font-medium">
-                                {error}
-                            </div>
-                        )}
+                    {error && (
+                        <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/25 text-red-600 dark:text-red-300 text-sm font-semibold">
+                            {error}
+                        </div>
+                    )}
+
+                    <div className="flex flex-col gap-2 pt-4 border-t border-(--line)">
                         <button
                             type="submit"
                             disabled={saving}
-                            className={cn(
-                                'w-full bg-(--sea-teal) hover:bg-(--sea-aqua) text-(--sea-ink) font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer',
-                            )}
+                            className="w-full bg-(--sea-teal) hover:bg-(--sea-aqua) text-white dark:text-[#071312] font-extrabold py-3 px-4 rounded-lg flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
                         >
-                            <Save size={18} />
+                            <Save size={17} />
                             {saving
                                 ? 'Saving...'
                                 : device
-                                ? mode === 'inventory'
-                                    ? 'Update Master'
-                                    : 'Update Asset'
-                                : mode === 'inventory'
-                                  ? 'Add to Library'
-                                  : 'Add Asset'}
+                                  ? 'Update Asset'
+                                  : mode === 'inventory'
+                                    ? 'Add to Library'
+                                    : 'Add Asset'}
                         </button>
+
                         {device && (
                             <button
                                 type="button"
                                 onClick={handleDelete}
-                                className="w-full bg-red-500/5 hover:bg-red-500/10 text-red-500/80 hover:text-red-500 font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all border border-red-500/10 hover:border-red-500/20 active:scale-[0.98] cursor-pointer"
-                                title="Delete Asset"
+                                className="w-full text-red-600 dark:text-red-300 hover:bg-red-500/10 font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 border border-red-500/20"
                             >
-                                <Trash2 size={16} />
-                                <span className="text-xs uppercase tracking-wider">
-                                    Delete Asset
-                                </span>
+                                <Trash2 size={15} />
+                                Delete Asset
                             </button>
                         )}
                     </div>
                 </form>
             ) : (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 overflow-hidden">
-                    <div className="space-y-4">
-                        <h4 className="text-xs font-bold text-(--sea-ink-soft) opacity-60 uppercase tracking-widest flex items-center gap-2">
-                            Port Interface Preview
-                        </h4>
+                <div className="space-y-5">
+                    <div className="space-y-3">
+                        <span className="asset-section-label">
+                            Port Interface
+                        </span>
                         <PortFaceplate
                             device={formData}
-                            onPortClick={
-                                mode === 'inventory'
-                                    ? undefined
-                                    : (p) =>
-                                          setIsPatching(
-                                              isPatching?.id === p.id
-                                                  ? null
-                                                  : p,
-                                          )
+                            onPortClick={(port) =>
+                                setIsPatching(
+                                    isPatching?.id === port.id ? null : port,
+                                )
                             }
                             activePortId={isPatching?.id}
                         />
-                        {mode === 'inventory' && (
-                            <p className="text-[10px] text-zinc-500 italic px-1">
-                                Note: Connectivity is managed on live rack
-                                instances, not blueprints.
-                            </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <span className="asset-section-label">
+                            Connections
+                        </span>
+                        {connections.length === 0 ? (
+                            <div className="text-center py-6 rounded-lg border border-dashed border-(--line) text-xs text-(--sea-ink-soft)">
+                                No active connections
+                            </div>
+                        ) : (
+                            connections.map((connection) => {
+                                const isPortA = device?.ports.some(
+                                    (port) =>
+                                        port.id === connection.portAId,
+                                );
+                                const localPort = device?.ports.find(
+                                    (port) =>
+                                        port.id ===
+                                        (isPortA
+                                            ? connection.portAId
+                                            : connection.portBId),
+                                );
+                                const peerPortId = isPortA
+                                    ? connection.portBId
+                                    : connection.portAId;
+                                const peerDevice = allDevices.find((candidate) =>
+                                    candidate.ports.some(
+                                        (port) => port.id === peerPortId,
+                                    ),
+                                );
+                                const peerPort = peerDevice?.ports.find(
+                                    (port) => port.id === peerPortId,
+                                );
+
+                                return (
+                                    <div
+                                        key={connection.id}
+                                        className="flex items-center justify-between p-3 rounded-lg border border-(--line) bg-(--surface-muted)"
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="w-8 h-8 rounded-md bg-(--sea-teal)/12 flex items-center justify-center text-(--sea-teal)">
+                                                <Zap size={14} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="text-xs font-bold text-(--sea-ink) truncate">
+                                                    {localPort?.name} →{' '}
+                                                    {peerDevice?.name}
+                                                </div>
+                                                <div className="text-[10px] text-(--sea-ink-soft)">
+                                                    {connection.type.toUpperCase()}{' '}
+                                                    · {peerPort?.name}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleDisconnect(connection.id)
+                                            }
+                                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-md"
+                                            aria-label="Disconnect port"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                );
+                            })
                         )}
                     </div>
 
-                    {mode === 'rack' && (
-                        <div className="space-y-4">
-                            <h4 className="text-xs font-bold text-(--sea-ink-soft) opacity-60 uppercase tracking-widest">
-                                Connect
-                            </h4>
-                            <div className="space-y-2">
-                                {connections.map((conn) => {
-                                    const isPortA = device?.ports.some(
-                                        (p) => p.id === conn.portAId,
-                                    );
-                                    const localPort = device?.ports.find(
-                                        (p) =>
-                                            p.id ===
-                                            (isPortA
-                                                ? conn.portAId
-                                                : conn.portBId),
-                                    );
-                                    const peerPortId = isPortA
-                                        ? conn.portBId
-                                        : conn.portAId;
-
-                                    const peerDevice = allDevices.find((d) =>
-                                        d.ports.some(
-                                            (p) => p.id === peerPortId,
-                                        ),
-                                    );
-                                    const peerPort = peerDevice?.ports.find(
-                                        (p) => p.id === peerPortId,
-                                    );
-
-                                    return (
-                                        <div
-                                            key={conn.id}
-                                            className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5 group hover:border-white/10 transition-colors"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-md bg-(--sea-teal)/20 flex items-center justify-center text-(--sea-teal)">
-                                                    <Zap size={14} />
-                                                </div>
-                                                <div>
-                                                    <div className="text-xs font-bold text-(--sea-ink)">
-                                                        {localPort?.name} →{' '}
-                                                        {peerDevice?.name}
-                                                    </div>
-                                                    <div className="text-[10px] text-(--sea-ink-soft) opacity-60">
-                                                        {conn.type.toUpperCase()}{' '}
-                                                        | {peerPort?.name}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    handleDisconnect(conn.id)
-                                                }
-                                                className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/20 text-red-500 rounded-md transition-all cursor-pointer"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                                {connections.length === 0 && (
-                                    <div className="text-center py-6 rounded-lg border border-dashed border-black/10 dark:border-white/5">
-                                        <p className="text-[10px] text-(--sea-ink-soft) opacity-40 font-medium">
-                                            No active connections
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {isPatching && mode === 'rack' && (
-                        <div className="p-4 bg-(--sea-teal)/10 rounded-xl border border-(--sea-teal)/20 space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                    {isPatching && (
+                        <div className="p-4 bg-(--sea-teal)/10 rounded-lg border border-(--sea-teal)/25 space-y-3">
                             <div className="text-[10px] font-bold text-(--sea-teal) uppercase tracking-wider flex items-center justify-between">
-                                <span>PATCHING: {isPatching.name}</span>
+                                <span>Patching: {isPatching.name}</span>
                                 <button
                                     type="button"
                                     onClick={() => setIsPatching(null)}
-                                    className="text-(--sea-ink-soft) opacity-60 hover:text-(--sea-ink) hover:opacity-100 transition-all cursor-pointer"
+                                    className="text-(--sea-ink-soft) hover:text-(--sea-ink)"
                                 >
                                     Cancel
                                 </button>
                             </div>
-                            <div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                            <div className="space-y-4 max-h-64 overflow-y-auto pr-1">
                                 {allDevices
-                                    .filter((d) => d.id !== device?.id)
-                                    .map((d) => (
-                                        <div key={d.id} className="space-y-2">
-                                            <div className="text-[9px] uppercase tracking-widest text-(--sea-ink-soft) opacity-40 font-bold border-b border-black/5 dark:border-white/5 pb-1">
-                                                {d.name}
+                                    .filter(
+                                        (candidate) =>
+                                            candidate.id !== device?.id,
+                                    )
+                                    .map((candidate) => (
+                                        <div
+                                            key={candidate.id}
+                                            className="space-y-2"
+                                        >
+                                            <div className="text-[10px] uppercase tracking-wider text-(--sea-ink-soft) font-bold border-b border-(--line) pb-1">
+                                                {candidate.name}
                                             </div>
                                             <div className="flex flex-wrap gap-1">
-                                                {d.ports.map((p) => {
-                                                    const isOccupied =
-                                                        p.status === 'plugged';
+                                                {candidate.ports.map((port) => {
+                                                    const occupied =
+                                                        port.status ===
+                                                        'plugged';
                                                     return (
                                                         <button
-                                                            key={p.id}
+                                                            key={port.id}
                                                             type="button"
-                                                            disabled={
-                                                                isOccupied
-                                                            }
+                                                            disabled={occupied}
                                                             onClick={() =>
                                                                 handleConnect(
-                                                                    p.id,
+                                                                    port.id,
                                                                 )
                                                             }
                                                             className={cn(
-                                                                'text-[9px] px-2 py-1 rounded border transition-all',
-                                                                isOccupied
-                                                                    ? 'bg-white/5 border-transparent text-white/10 cursor-not-allowed'
-                                                                    : 'bg-black/20 border-white/10 hover:border-(--sea-teal) text-white/60 hover:text-white',
+                                                                'text-[10px] px-2 py-1 rounded border',
+                                                                occupied
+                                                                    ? 'bg-(--surface-muted) border-(--line) text-(--sea-ink-soft) opacity-35'
+                                                                    : 'bg-(--surface) border-(--line-strong) text-(--sea-ink) hover:border-(--sea-teal)',
                                                             )}
                                                         >
-                                                            {p.name}
+                                                            {port.name}
                                                         </button>
                                                     );
                                                 })}
