@@ -943,16 +943,18 @@ const AddRoomForm = React.memo(
     }) => {
         const [newRoomName, setNewRoomName] = useState('');
         const [loading, setLoading] = useState(false);
+        const [error, setError] = useState('');
         const createRoomFn = useServerFn(createRoom);
 
         const handleCreateRoom = async (e: React.FormEvent) => {
             e.preventDefault();
             if (!newRoomName.trim()) return;
+            setError('');
             setLoading(true);
             try {
                 const result = await createRoomFn({
                     data: {
-                        name: newRoomName,
+                        name: newRoomName.trim(),
                         floorId: dcCode,
                         width: 12,
                         height: 10,
@@ -960,6 +962,12 @@ const AddRoomForm = React.memo(
                 } as never);
                 setNewRoomName('');
                 onSuccess(result.room.id);
+            } catch (err) {
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : 'Failed to create room',
+                );
             } finally {
                 setLoading(false);
             }
@@ -1119,6 +1127,11 @@ const AddRackForm = React.memo(
                             Cancel
                         </button>
                     </div>
+                    {error && (
+                        <div className="w-full md:basis-full px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-sm font-medium">
+                            {error}
+                        </div>
+                    )}
                 </form>
             </div>
         );
