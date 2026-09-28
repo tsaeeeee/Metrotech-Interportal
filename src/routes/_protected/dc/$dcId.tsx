@@ -412,7 +412,14 @@ function App() {
     const handleUpdateRack = async (id: string, name: string) => {
         setIsRefreshing(true);
         try {
-            await updateRackFn({ data: { id, name, uCapacity: 42 } } as never); // Default capacity for now
+            const currentRack = hierarchy?.racks.find((rack) => rack.id === id);
+            await updateRackFn({
+                data: {
+                    id,
+                    name,
+                    uCapacity: currentRack?.uCapacity || rackData?.rack.uCapacity || 42,
+                },
+            } as never);
             await loadHierarchy();
             if (rackData?.rack.id === id) refreshData(true);
         } finally {
