@@ -22,6 +22,7 @@ import {
     upsertDevice,
     upsertInventoryAsset,
 } from '#/features/database/database-service';
+import { createId } from '#/lib/id';
 import { cn } from '#/lib/utils';
 import type { Connection, Device, Port } from '#/types/schema';
 
@@ -120,7 +121,7 @@ export function AssetForm({
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [formData, setFormData] = useState<Device>({
-        id: crypto.randomUUID(),
+        id: createId(),
         name: '',
         rackId: mode === 'rack' ? rackId : '',
         uHeight: 1,
@@ -154,7 +155,7 @@ export function AssetForm({
         const dummyPorts: Port[] = Array.from(
             { length: preset.ports },
             (_, i) => ({
-                id: crypto.randomUUID(),
+                id: createId(),
                 name: `${preset.type.toUpperCase()}-P${i + 1}`,
                 type: 'RJ45',
                 deviceId: formData.id,
