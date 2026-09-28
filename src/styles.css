@@ -64,8 +64,8 @@ body {
   color: var(--sea-ink);
   font-family: var(--font-sans);
   background:
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--line) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--line) 5%, transparent) 1px, transparent 1px),
     var(--bg-base);
   background-size: 48px 48px;
   background-position: -1px -1px;
@@ -224,4 +224,106 @@ a {
   .page-wrap {
     width: min(100% - 1rem, 1480px);
   }
+}
+
+
+.asset-section-label {
+  display: block;
+  color: var(--kicker);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.asset-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--sea-ink-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.asset-control {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--sea-ink);
+  padding: 0.65rem 0.8rem;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.asset-control::placeholder {
+  color: color-mix(in srgb, var(--sea-ink-soft) 70%, transparent);
+}
+
+.asset-control:focus {
+  border-color: var(--sea-teal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sea-teal) 16%, transparent);
+}
+
+.asset-control-readonly {
+  background: color-mix(in srgb, var(--surface-muted) 78%, var(--line));
+  color: var(--sea-ink-soft);
+}
+
+.asset-control option {
+  background: var(--surface);
+  color: var(--sea-ink);
+}
+
+.asset-choice,
+.asset-other-choice {
+  border: 1px solid var(--line);
+  background: var(--surface-muted);
+  color: var(--sea-ink-soft);
+}
+
+.asset-choice {
+  min-height: 76px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.asset-choice:hover,
+.asset-other-choice:hover {
+  color: var(--sea-ink);
+  border-color: color-mix(in srgb, var(--sea-teal) 48%, var(--line));
+  background: color-mix(in srgb, var(--sea-teal) 7%, var(--surface-muted));
+}
+
+.asset-choice-active,
+.asset-other-choice-active {
+  color: var(--sea-teal);
+  border-color: color-mix(in srgb, var(--sea-teal) 62%, var(--line));
+  background: color-mix(in srgb, var(--sea-teal) 10%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sea-teal) 14%, transparent);
+}
+
+.asset-other-choice {
+  min-height: 58px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.8rem;
+  font-size: 0.72rem;
+}
+
+.dark .asset-control {
+  background: color-mix(in srgb, var(--surface-muted) 92%, black);
+}
+
+.light svg,
+:root:not(.dark) svg {
+  color: inherit;
 }
