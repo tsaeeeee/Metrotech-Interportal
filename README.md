@@ -41,7 +41,7 @@ Native build permissions for `better-sqlite3`, `esbuild`, and `lightningcss` are
 ### Verify Environment
 
 ```bash
-pnpm doctor
+pnpm run doctor
 ```
 
 Expected result:
@@ -100,7 +100,7 @@ Users can create an account locally, add datacenters, create rooms and racks, pl
 
 ```bash
 pnpm dev
-pnpm doctor
+pnpm run doctor
 pnpm check
 pnpm test
 pnpm build
