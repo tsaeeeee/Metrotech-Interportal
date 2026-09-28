@@ -49,6 +49,55 @@ function parseConnection(payload: string): Connection {
     return JSON.parse(payload) as Connection;
 }
 
+function sanitizeAssetForStorage(
+    input: Device,
+    rackId: string,
+    uPosition: number,
+): Device {
+    const category =
+        input.category ??
+        (input.type === 'network'
+            ? 'switch'
+            : input.type === 'server'
+              ? 'server'
+              : 'other');
+    const isOther = category === 'other';
+
+    const asset: Device = {
+        ...input,
+        rackId,
+        uPosition,
+        category,
+        brand: isOther ? undefined : input.brand?.trim(),
+        equipmentType: isOther ? undefined : input.equipmentType?.trim(),
+        serialNumber: isOther ? undefined : input.serialNumber?.trim(),
+        otherKind: isOther ? input.otherKind : undefined,
+        assetTag: undefined,
+        manufacturer: undefined,
+        model: undefined,
+        status: 'active',
+        ports: isOther
+            ? []
+            : (input.ports || []).map((port) => ({
+                  ...port,
+                  deviceId: input.id,
+              })),
+    };
+
+    if (!asset.name.trim()) {
+        throw new Error('Asset name is required.');
+    }
+
+    if (!isOther) {
+        if (!asset.brand) throw new Error('Brand is required.');
+        if (!asset.equipmentType) throw new Error('Type is required.');
+        if (!asset.serialNumber) throw new Error('Serial number is required.');
+    }
+
+    return asset;
+}
+
+
 function roomFromRow(row: {
     id: string;
     name: string;
@@ -381,16 +430,14 @@ export const upsertDevice = createServerFn({ method: 'POST' })
             throw new Error('Rack not found. Select a rack before adding an asset.');
         }
 
-        const device: Device = {
-            ...ctx.data,
-            rackId: rackRow.id,
-            uHeight: Number(ctx.data.uHeight) || 1,
-            uPosition: Number(ctx.data.uPosition) || 1,
-            ports: (ctx.data.ports || []).map((port) => ({
-                ...port,
-                deviceId: ctx.data.id,
-            })),
-        };
+        const device = sanitizeAssetForStorage(
+            {
+                ...ctx.data,
+                uHeight: Number(ctx.data.uHeight) || 1,
+            },
+            rackRow.id,
+            Number(ctx.data.uPosition) || 1,
+        );
 
         if (
             device.uPosition < 1 ||
@@ -605,15 +652,14 @@ export const upsertInventoryAsset = createServerFn({ method: 'POST' })
         await requireAuth();
         const db = getDb();
 
-        const asset: Device = {
-            ...ctx.data,
-            rackId: '',
-            uPosition: 1,
-            ports: (ctx.data.ports || []).map((port) => ({
-                ...port,
-                deviceId: ctx.data.id,
-            })),
-        };
+        const asset = sanitizeAssetForStorage(
+            {
+                ...ctx.data,
+                uHeight: Number(ctx.data.uHeight) || 1,
+            },
+            '',
+            1,
+        );
 
         db.prepare(
             `INSERT INTO inventory (id, payload)
