@@ -12,7 +12,7 @@ export interface ServerCatalogItem {
     value: string;
     label: string;
     family: string;
-    brandHint?: 'CIARA' | 'Jabil';
+    brandHint?: 'CIARA' | 'Jabil' | 'Supermicro';
     bayCount: number;
     profile: ServerFrontProfile;
     defaultUHeight: number;
@@ -138,7 +138,7 @@ export const SERVER_CATALOG: ServerCatalogItem[] = [
         value: 'Supermicro 2U Server',
         label: 'Supermicro 2U Server',
         family: 'Supermicro',
-        brandHint: 'CIARA',
+        brandHint: 'Supermicro',
         bayCount: 12,
         profile: 'supermicro',
         defaultUHeight: 2,
@@ -147,7 +147,7 @@ export const SERVER_CATALOG: ServerCatalogItem[] = [
         value: 'Supermicro GPU 4U Server',
         label: 'Supermicro GPU 4U Server',
         family: 'Supermicro GPU',
-        brandHint: 'CIARA',
+        brandHint: 'Supermicro',
         bayCount: 8,
         profile: 'supermicro-gpu',
         defaultUHeight: 4,
