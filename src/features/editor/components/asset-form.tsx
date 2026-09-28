@@ -254,7 +254,7 @@ export function AssetForm({
                 ports: makePorts(
                     prev.id,
                     nextCategory,
-                    prev.category === 'other' ? [] : prev.ports || [],
+                    prev.category === nextCategory ? prev.ports || [] : [],
                 ),
             };
         });
