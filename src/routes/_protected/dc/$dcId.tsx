@@ -853,23 +853,20 @@ function App() {
                                             }
                                             className="w-full flex items-center justify-between p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer group text-left"
                                         >
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-semibold">
+                                            <div className="min-w-0 flex flex-col">
+                                                <span className="text-sm font-semibold truncate">
                                                     {device.name}
                                                 </span>
-                                                <span className="text-[10px] opacity-50 uppercase">
-                                                    {device.type} •{' '}
-                                                    {device.status}
+                                                <span className="text-[10px] text-(--sea-ink-soft) truncate">
+                                                    {device.category === 'other'
+                                                        ? `${device.uHeight}U component`
+                                                        : [device.brand, device.equipmentType]
+                                                              .filter(Boolean)
+                                                              .join(' · ')}
                                                 </span>
                                             </div>
-                                            <div
-                                                className={`text-[10px] font-mono px-2 py-1 rounded border ${
-                                                    device.status === 'active'
-                                                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                                                        : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                                                }`}
-                                            >
-                                                {device.assetTag || 'NO-TAG'}
+                                            <div className="shrink-0 text-[10px] font-mono px-2 py-1 rounded border border-(--line) bg-(--surface-muted) text-(--sea-ink-soft)">
+                                                {device.uHeight}U
                                             </div>
                                         </button>
                                     ))}
