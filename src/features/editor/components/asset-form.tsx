@@ -302,13 +302,6 @@ export function AssetForm({
             ...prev,
             equipmentType,
             uHeight: catalogItem?.defaultUHeight ?? prev.uHeight,
-            brand:
-                catalogItem?.brandHint &&
-                (!prev.brand ||
-                    prev.brand === 'CIARA' ||
-                    prev.brand === 'Jabil')
-                    ? catalogItem.brandHint
-                    : prev.brand,
         }));
     };
 
