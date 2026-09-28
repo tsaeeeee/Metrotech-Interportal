@@ -158,7 +158,7 @@ export function InfrastructureNavigator({
         : hierarchy.floors;
 
     return (
-        <aside className="island-shell bg-white/90 backdrop-blur-md border border-zinc-100 rounded-3xl p-6 sticky top-[76px] z-10 max-h-[calc(100vh-92px)] overflow-y-auto custom-scrollbar shadow-sm">
+        <aside className="ops-panel rounded-xl p-4 sticky top-[76px] z-10 max-h-[calc(100vh-92px)] overflow-y-auto custom-scrollbar">
             <div className="flex items-center justify-between mb-6 px-1">
                 <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -492,7 +492,7 @@ function SortableNavigatorItem({
                     }
                 }}
                 className={cn(
-                    'w-full flex items-center gap-2 px-2 py-2 rounded-xl transition-all cursor-pointer group text-left',
+                    'w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-all cursor-pointer group text-left',
                     isActive
                         ? type === 'room'
                             ? 'bg-emerald-600 text-white shadow-md shadow-emerald-900/20 font-bold'
@@ -500,7 +500,7 @@ function SortableNavigatorItem({
                         : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:text-zinc-900 dark:hover:text-zinc-200',
                     isDeleting &&
                         'bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900/50',
-                    type === 'room' ? 'mt-2' : 'mt-0',
+                    type === 'room' ? 'mt-1.5' : 'mt-0',
                 )}
             >
                 {/* Drag Handle */}
