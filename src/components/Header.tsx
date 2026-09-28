@@ -1,7 +1,17 @@
 import { Link, useRouteContext, useRouter } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
+import { Database, LogOut, ShieldCheck } from 'lucide-react';
 import { logout } from '../features/auth/auth-service';
 import ThemeToggle from './ThemeToggle';
+
+function initials(name: string) {
+    return name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join('');
+}
 
 export default function Header() {
     const { session } = useRouteContext({ from: '__root__' });
@@ -10,57 +20,87 @@ export default function Header() {
 
     const handleLogout = async () => {
         await logoutFn();
-        router.invalidate();
+        await router.invalidate();
+        router.navigate({ to: '/login' });
     };
 
     return (
-        <header className="sticky top-0 z-50 border-b border-(--line) bg-(--header-bg) px-4 backdrop-blur-lg">
-            <nav className="page-wrap flex flex-wrap items-center gap-x-3 gap-y-2 py-3 sm:py-4">
-                <h2 className="m-0 shrink-0 text-base font-semibold tracking-tight">
+        <header className="sticky top-0 z-50 border-b border-(--line) bg-(--header-bg) backdrop-blur-xl">
+            <nav className="mx-auto flex h-15 w-full max-w-[1920px] items-center gap-3 px-4 md:px-8">
+                <Link
+                    to="/"
+                    className="group inline-flex min-w-0 items-center gap-3 text-(--sea-ink) no-underline"
+                >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-(--chip-line) bg-(--chip-bg) shadow-sm">
+                        <Database
+                            size={17}
+                            className="text-(--lagoon-deep)"
+                        />
+                    </span>
+                    <span className="hidden min-w-0 sm:block">
+                        <span className="block truncate text-sm font-extrabold tracking-tight">
+                            Metrotech Interportal
+                        </span>
+                        <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-(--sea-ink-soft)">
+                            <ShieldCheck size={10} />
+                            DCIM Console
+                        </span>
+                    </span>
+                </Link>
+
+                <div className="ml-2 hidden items-center gap-1 md:flex">
                     <Link
                         to="/"
-                        className="inline-flex items-center gap-2 rounded-full border border-(--chip-line) bg-[var(--chip-bg)] px-3 py-1.5 text-sm text-[var(--sea-ink)] no-underline shadow-[0_8px_24px_rgba(30,90,72,0.08)] sm:px-4 sm:py-2"
+                        className="app-nav-link"
+                        activeProps={{ className: 'app-nav-link is-active' }}
+                        activeOptions={{ exact: true }}
                     >
-                        <span className="h-2.5 w-2.5 rounded-full bg-(--lagoon-deep) shadow-[0_0_8px_var(--lagoon)]" />
-                        Metrotech Interportal
+                        Datacenters
                     </Link>
-                </h2>
-
-                <div className="ml-auto flex items-center gap-1.5 sm:ml-0 sm:gap-2">
-                    <ThemeToggle />
-                </div>
-
-                <div className="order-3 flex w-full flex-wrap items-center gap-x-4 gap-y-1 pb-1 text-sm font-semibold sm:order-2 sm:w-auto sm:flex-nowrap sm:pb-0">
                     <Link
                         to="/about"
-                        className="nav-link"
-                        activeProps={{ className: 'nav-link is-active' }}
+                        className="app-nav-link"
+                        activeProps={{ className: 'app-nav-link is-active' }}
                     >
                         About
                     </Link>
+                </div>
+
+                <div className="ml-auto flex items-center gap-2">
+                    <ThemeToggle />
+
                     {session ? (
                         <>
-                            <span className="text-zinc-500 font-normal">|</span>
-                            <span className="text-(--sea-ink)">
-                                {session.user.fullName}
-                            </span>
+                            <div className="hidden h-7 w-px bg-(--line) sm:block" />
+                            <div className="hidden items-center gap-2 sm:flex">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-(--lagoon-deep)/10 text-[10px] font-black text-(--lagoon-deep)">
+                                    {initials(session.user.fullName)}
+                                </div>
+                                <div className="hidden max-w-40 lg:block">
+                                    <div className="truncate text-xs font-bold text-(--sea-ink)">
+                                        {session.user.fullName}
+                                    </div>
+                                    <div className="truncate text-[9px] text-(--sea-ink-soft)">
+                                        {session.user.email}
+                                    </div>
+                                </div>
+                            </div>
                             <button
                                 type="button"
                                 onClick={handleLogout}
-                                className="ml-2 rounded-full px-3 py-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 transition-colors cursor-pointer"
+                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-transparent px-2 text-[11px] font-bold text-(--sea-ink-soft) hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:hover:border-red-900/50 dark:hover:bg-red-950/30"
+                                title="Log out"
                             >
-                                Log Out
+                                <LogOut size={13} />
+                                <span className="hidden lg:inline">Log out</span>
                             </button>
                         </>
                     ) : (
                         <Link
                             to="/login"
-                            className="nav-link"
-                            activeProps={{
-                                className: 'nav-link is-active',
-                            }}
+                            className="rounded-lg bg-(--lagoon-deep) px-3 py-1.5 text-xs font-bold text-white no-underline hover:brightness-105"
                         >
-                            Log In
+                            Log in
                         </Link>
                     )}
                 </div>
