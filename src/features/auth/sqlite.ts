@@ -92,8 +92,26 @@ function ensureSchema(db: Database.Database) {
 }
 
 function normalizeDevice(device: Device, rackId?: string): Device {
+    const category =
+        device.category ??
+        (device.type === 'network'
+            ? 'switch'
+            : device.type === 'server'
+              ? 'server'
+              : 'other');
+
     return {
         ...device,
+        category,
+        brand: device.brand ?? device.manufacturer ?? '',
+        equipmentType: device.equipmentType ?? device.model ?? '',
+        otherKind:
+            device.otherKind ??
+            (device.type === 'cable'
+                ? 'cable-management'
+                : device.type === 'panel'
+                  ? 'blanking-panel'
+                  : undefined),
         rackId: rackId ?? device.rackId ?? '',
         uHeight: Number(device.uHeight) || 1,
         uPosition: Number(device.uPosition) || 1,
