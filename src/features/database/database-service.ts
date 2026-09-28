@@ -777,7 +777,20 @@ export const getInfrastructureSummary = createServerFn({ method: 'GET' }).handle
     async (): Promise<{ floors: Floor[]; rooms: Room[]; racks: Rack[] }> => {
         const db = getDb();
 
-        const floors = await getFloors();
+        const datacenters = db
+            .prepare('SELECT code, name, location FROM datacenters ORDER BY created_at')
+            .all() as { code: string; name: string; location: string }[];
+        const storedFloors = db
+            .prepare('SELECT id, name, location FROM floors ORDER BY name')
+            .all() as Floor[];
+        const floors: Floor[] = datacenters.map((dc) => ({
+            id: dc.code,
+            name: dc.name,
+            location: dc.location,
+        }));
+        for (const floor of storedFloors) {
+            if (!floors.some((item) => item.id === floor.id)) floors.push(floor);
+        }
 
         const roomRows = db
             .prepare(
