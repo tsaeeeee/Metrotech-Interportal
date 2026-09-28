@@ -2,6 +2,11 @@
   "name": "metrotech-interportal",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@12.7.0",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "pnpm": ">=12.7.0 <13"
+  },
   "imports": {
     "#/*": "./src/*"
   },
@@ -13,7 +18,8 @@
     "test": "vitest run",
     "format": "biome format",
     "lint": "biome lint && tsc --noEmit",
-    "check": "biome check && tsc --noEmit"
+    "check": "biome check && tsc --noEmit",
+    "doctor": "node scripts/doctor.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -21,13 +27,13 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@tailwindcss/vite": "^4.1.18",
-    "@tanstack/react-devtools": "latest",
-    "@tanstack/react-router": "latest",
-    "@tanstack/react-router-devtools": "latest",
-    "@tanstack/react-router-ssr-query": "latest",
-    "@tanstack/react-start": "latest",
-    "@tanstack/router-plugin": "^1.132.0",
-    "better-sqlite3": "^12.9.0",
+    "@tanstack/react-devtools": "0.10.0",
+    "@tanstack/react-router": "1.168.8",
+    "@tanstack/react-router-devtools": "1.166.11",
+    "@tanstack/react-router-ssr-query": "1.166.10",
+    "@tanstack/react-start": "1.167.13",
+    "@tanstack/router-plugin": "1.167.9",
+    "better-sqlite3": "12.9.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.545.0",
     "react": "^19.2.0",
@@ -38,7 +44,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.5",
     "@tailwindcss/typography": "^0.5.16",
-    "@tanstack/devtools-vite": "latest",
+    "@tanstack/devtools-vite": "0.6.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.0",
     "@types/better-sqlite3": "^7.6.13",
@@ -51,12 +57,5 @@
     "vite": "^7.3.1",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.0.5"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "esbuild",
-      "lightningcss"
-    ]
   }
 }
