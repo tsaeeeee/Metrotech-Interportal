@@ -261,6 +261,12 @@ function App() {
         setDrawerOpen(true);
     };
 
+    const handleAddMaster = () => {
+        setSelectedDevice(undefined);
+        setDrawerMode('inventory');
+        setDrawerOpen(true);
+    };
+
     const handleEditAsset = (device: Device) => {
         setSelectedDevice(device);
         setDrawerMode('rack');
@@ -566,13 +572,19 @@ function App() {
                 // 1. Dropping an Inventory Blueprint onto the rack grid
                 if (active.data.current?.type === 'master') {
                     const blueprint = active.data.current.device;
-                    const newId = `new-${Date.now()}`;
+                    const newId = crypto.randomUUID();
                     const newAsset: Device = {
                         ...blueprint,
                         id: newId,
                         uPosition: finalU,
                         rackId: rackData?.rack.id || '',
                         status: 'active',
+                        ports: (blueprint.ports || []).map((port) => ({
+                            ...port,
+                            id: crypto.randomUUID(),
+                            deviceId: newId,
+                            status: 'up',
+                        })),
                     };
 
                     if (rackData) {
@@ -784,6 +796,7 @@ function App() {
                         <aside className="space-y-6">
                             <AssetTray
                                 inventory={inventory}
+                                onAddMaster={handleAddMaster}
                                 onEditMaster={handleEditMaster}
                                 onDuplicateMaster={handleDuplicateMaster}
                                 onDeleteMaster={handleDeleteMaster}
