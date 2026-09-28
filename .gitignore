@@ -25,3 +25,8 @@ openspec/
 *.sqlite-wal
 data/*.json
 data/*.sqlite*
+
+# Local runtime / package-manager artifacts
+.node*/
+.pnpm-store/
+*.log
