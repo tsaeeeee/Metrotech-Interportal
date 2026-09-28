@@ -1,20 +1,77 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { createServerFn } from '@tanstack/react-start';
 import type {
+    AssetStatus,
     Connection,
     Database,
     Device,
+    DeviceType,
     Floor,
+    Port,
+    PortStatus,
+    PortType,
     Rack,
     Room,
 } from '#/types/schema';
 import { getSession } from '../auth/auth-service';
-import { getDb as getSqliteDb } from '../auth/sqlite';
+import { getDb } from '../auth/sqlite';
 
-const DB_PATH = path.resolve(process.cwd(), 'data/db.json');
+type RoomRow = {
+    id: string;
+    name: string;
+    floor_id: string;
+    width: number;
+    height: number;
+    sort_order: number;
+};
 
-let cachedDb: Database | null = null;
+type RackRow = {
+    id: string;
+    name: string;
+    room_id: string;
+    u_capacity: number;
+    x: number;
+    y: number;
+    sort_order: number;
+};
+
+type DeviceRow = {
+    id: string;
+    name: string;
+    rack_id: string;
+    u_height: number;
+    u_position: number;
+    type: DeviceType;
+    depth: Device['depth'];
+    asset_tag: string | null;
+    serial_number: string | null;
+    model: string | null;
+    manufacturer: string | null;
+    status: AssetStatus;
+};
+
+type InventoryRow = Omit<DeviceRow, 'rack_id' | 'u_position'>;
+
+type PortRow = {
+    id: string;
+    name: string;
+    type: PortType;
+    device_id: string;
+    status: PortStatus;
+};
+
+type InventoryPortRow = Omit<PortRow, 'device_id'> & {
+    asset_id: string;
+};
+
+type ConnectionRow = {
+    id: string;
+    port_a_id: string;
+    port_b_id: string;
+    type: Connection['type'];
+    color: string | null;
+    status: Connection['status'];
+};
 
 async function requireAuth() {
     const session = await getSession();
@@ -22,139 +79,487 @@ async function requireAuth() {
     return session;
 }
 
-/**
- * Low-level helper to read the JSON database.
- */
-async function readDb(): Promise<Database> {
-    if (cachedDb) return cachedDb;
-    try {
-        try {
-            await fs.access(DB_PATH);
-        } catch {
-            // File doesn't exist, return empty structure
-            const emptyDb: Database = {
-                floors: [],
-                rooms: [],
-                racks: [],
-                devices: [],
-                connections: [],
-                inventory: [],
-            };
-            await writeDb(emptyDb);
-            return emptyDb;
+function toRoom(row: RoomRow): Room {
+    return {
+        id: row.id,
+        name: row.name,
+        floorId: row.floor_id,
+        width: row.width,
+        height: row.height,
+        order: row.sort_order,
+    };
+}
+
+function toRack(row: RackRow, deviceIds: string[] = []): Rack {
+    return {
+        id: row.id,
+        name: row.name,
+        roomId: row.room_id,
+        uCapacity: row.u_capacity,
+        devices: deviceIds,
+        x: row.x,
+        y: row.y,
+        order: row.sort_order,
+    };
+}
+
+function toPort(row: PortRow): Port {
+    return {
+        id: row.id,
+        name: row.name,
+        type: row.type,
+        deviceId: row.device_id,
+        status: row.status,
+    };
+}
+
+function toDevice(row: DeviceRow, ports: Port[] = []): Device {
+    return {
+        id: row.id,
+        name: row.name,
+        rackId: row.rack_id,
+        uHeight: row.u_height,
+        uPosition: row.u_position,
+        type: row.type,
+        depth: row.depth,
+        assetTag: row.asset_tag || undefined,
+        serialNumber: row.serial_number || undefined,
+        model: row.model || undefined,
+        manufacturer: row.manufacturer || undefined,
+        status: row.status,
+        ports,
+    };
+}
+
+function toInventoryDevice(row: InventoryRow, ports: Port[] = []): Device {
+    return {
+        id: row.id,
+        name: row.name,
+        rackId: '',
+        uHeight: row.u_height,
+        uPosition: 1,
+        type: row.type,
+        depth: row.depth,
+        assetTag: row.asset_tag || undefined,
+        serialNumber: row.serial_number || undefined,
+        model: row.model || undefined,
+        manufacturer: row.manufacturer || undefined,
+        status: row.status,
+        ports,
+    };
+}
+
+function toConnection(row: ConnectionRow): Connection {
+    return {
+        id: row.id,
+        portAId: row.port_a_id,
+        portBId: row.port_b_id,
+        type: row.type,
+        color: row.color || undefined,
+        status: row.status,
+    };
+}
+
+function getFloor(floorId: string): Floor | null {
+    const db = getDb();
+    const row = db
+        .prepare(
+            'SELECT code AS id, name, location FROM datacenters WHERE code = ?',
+        )
+        .get(floorId) as Floor | undefined;
+    return row || null;
+}
+
+function getRoomById(roomId: string): Room | null {
+    const row = getDb()
+        .prepare(
+            'SELECT id, name, floor_id, width, height, sort_order FROM rooms WHERE id = ?',
+        )
+        .get(roomId) as RoomRow | undefined;
+    return row ? toRoom(row) : null;
+}
+
+function getDeviceIdsForRack(rackId: string): string[] {
+    return (
+        getDb()
+            .prepare(
+                'SELECT id FROM devices WHERE rack_id = ? ORDER BY u_position DESC',
+            )
+            .all(rackId) as { id: string }[]
+    ).map((entry) => entry.id);
+}
+
+function getRackById(rackId: string): Rack | null {
+    const row = getDb()
+        .prepare(
+            'SELECT id, name, room_id, u_capacity, x, y, sort_order FROM racks WHERE id = ?',
+        )
+        .get(rackId) as RackRow | undefined;
+    return row ? toRack(row, getDeviceIdsForRack(row.id)) : null;
+}
+
+function loadPortsForDevices(deviceIds: string[]): Map<string, Port[]> {
+    const result = new Map<string, Port[]>();
+    for (const id of deviceIds) result.set(id, []);
+    if (deviceIds.length === 0) return result;
+
+    const placeholders = deviceIds.map(() => '?').join(',');
+    const rows = getDb()
+        .prepare(
+            `SELECT id, name, type, device_id, status
+             FROM ports
+             WHERE device_id IN (${placeholders})
+             ORDER BY name`,
+        )
+        .all(...deviceIds) as PortRow[];
+
+    for (const row of rows) {
+        const list = result.get(row.device_id) || [];
+        list.push(toPort(row));
+        result.set(row.device_id, list);
+    }
+
+    return result;
+}
+
+function loadDevicesForRack(rackId: string): Device[] {
+    const rows = getDb()
+        .prepare(
+            `SELECT id, name, rack_id, u_height, u_position, type, depth,
+                    asset_tag, serial_number, model, manufacturer, status
+             FROM devices
+             WHERE rack_id = ?
+             ORDER BY u_position DESC`,
+        )
+        .all(rackId) as DeviceRow[];
+
+    const ports = loadPortsForDevices(rows.map((row) => row.id));
+    return rows.map((row) => toDevice(row, ports.get(row.id) || []));
+}
+
+function loadDevicesForRacks(rackIds: string[]): Device[] {
+    if (rackIds.length === 0) return [];
+    const placeholders = rackIds.map(() => '?').join(',');
+    const rows = getDb()
+        .prepare(
+            `SELECT id, name, rack_id, u_height, u_position, type, depth,
+                    asset_tag, serial_number, model, manufacturer, status
+             FROM devices
+             WHERE rack_id IN (${placeholders})
+             ORDER BY rack_id, u_position DESC`,
+        )
+        .all(...rackIds) as DeviceRow[];
+
+    const ports = loadPortsForDevices(rows.map((row) => row.id));
+    return rows.map((row) => toDevice(row, ports.get(row.id) || []));
+}
+
+function loadConnectionsForDevices(deviceIds: string[]): Connection[] {
+    if (deviceIds.length === 0) return [];
+
+    const placeholdersA = deviceIds.map(() => '?').join(',');
+    const placeholdersB = deviceIds.map(() => '?').join(',');
+    const rows = getDb()
+        .prepare(
+            `SELECT DISTINCT
+                c.id, c.port_a_id, c.port_b_id, c.type, c.color, c.status
+             FROM connections c
+             JOIN ports pa ON pa.id = c.port_a_id
+             JOIN ports pb ON pb.id = c.port_b_id
+             WHERE pa.device_id IN (${placeholdersA})
+                OR pb.device_id IN (${placeholdersB})
+             ORDER BY c.created_at ASC`,
+        )
+        .all(...deviceIds, ...deviceIds) as ConnectionRow[];
+
+    return rows.map(toConnection);
+}
+
+function validateDevicePlacement(device: Device) {
+    const db = getDb();
+    const rack = db
+        .prepare('SELECT id, u_capacity FROM racks WHERE id = ?')
+        .get(device.rackId) as { id: string; u_capacity: number } | undefined;
+
+    if (!rack) {
+        throw new Error('Rack not found. Select a rack before adding an asset.');
+    }
+
+    if (device.uHeight < 1 || device.uPosition < 1) {
+        throw new Error('Asset U position and height must be greater than zero.');
+    }
+
+    const endU = device.uPosition + device.uHeight - 1;
+    if (endU > rack.u_capacity) {
+        throw new Error(
+            `Asset placement must fit within rack capacity (1-${rack.u_capacity}U).`,
+        );
+    }
+
+    const existing = db
+        .prepare(
+            `SELECT id, u_position, u_height
+             FROM devices
+             WHERE rack_id = ? AND id <> ?`,
+        )
+        .all(device.rackId, device.id) as {
+        id: string;
+        u_position: number;
+        u_height: number;
+    }[];
+
+    const overlaps = existing.some((other) => {
+        const otherEnd = other.u_position + other.u_height - 1;
+        return device.uPosition <= otherEnd && endU >= other.u_position;
+    });
+
+    if (overlaps) {
+        throw new Error('The selected rack units are already occupied.');
+    }
+}
+
+function saveDevice(device: Device): Device {
+    const db = getDb();
+    validateDevicePlacement(device);
+
+    const now = Date.now();
+    const save = db.transaction(() => {
+        db.prepare(
+            `INSERT INTO devices (
+                id, name, rack_id, u_height, u_position, type, depth,
+                asset_tag, serial_number, model, manufacturer, status,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                rack_id = excluded.rack_id,
+                u_height = excluded.u_height,
+                u_position = excluded.u_position,
+                type = excluded.type,
+                depth = excluded.depth,
+                asset_tag = excluded.asset_tag,
+                serial_number = excluded.serial_number,
+                model = excluded.model,
+                manufacturer = excluded.manufacturer,
+                status = excluded.status,
+                updated_at = excluded.updated_at`,
+        ).run(
+            device.id,
+            device.name.trim(),
+            device.rackId,
+            device.uHeight,
+            device.uPosition,
+            device.type,
+            device.depth,
+            device.assetTag || null,
+            device.serialNumber || null,
+            device.model || null,
+            device.manufacturer || null,
+            device.status,
+            now,
+            now,
+        );
+
+        const incomingPortIds = new Set((device.ports || []).map((port) => port.id));
+        const existingPorts = db
+            .prepare('SELECT id FROM ports WHERE device_id = ?')
+            .all(device.id) as { id: string }[];
+
+        for (const existing of existingPorts) {
+            if (!incomingPortIds.has(existing.id)) {
+                db.prepare('DELETE FROM ports WHERE id = ?').run(existing.id);
+            }
         }
 
-        const data = await fs.readFile(DB_PATH, 'utf-8');
-        const db = JSON.parse(data);
+        const upsertPort = db.prepare(
+            `INSERT INTO ports (id, name, type, device_id, status)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                type = excluded.type,
+                device_id = excluded.device_id,
+                status = excluded.status`,
+        );
 
-        // Ensure arrays exist
-        if (!db.floors) db.floors = [];
-        if (!db.rooms) db.rooms = [];
-        if (!db.racks) db.racks = [];
-        if (!db.devices) db.devices = [];
-        if (!db.connections) db.connections = [];
-        if (!db.inventory) db.inventory = [];
+        for (const port of device.ports || []) {
+            upsertPort.run(
+                port.id,
+                port.name,
+                port.type,
+                device.id,
+                port.status || 'up',
+            );
+        }
+    });
 
-        // Automatic migration for 'order' property
-        db.rooms = db.rooms.map((r: Room, i: number) => ({
-            ...r,
-            order: r.order ?? i + 1,
-        }));
-        db.racks = db.racks.map((r: Rack, i: number) => ({
-            ...r,
-            devices: Array.isArray(r.devices) ? r.devices : [],
-            x: Number.isFinite(r.x) ? r.x : 0,
-            y: Number.isFinite(r.y) ? r.y : 0,
-            order: r.order ?? i + 1,
-        }));
-        db.devices = db.devices.map((device: Device) => ({
-            ...device,
-            ports: Array.isArray(device.ports) ? device.ports : [],
-        }));
-        db.inventory = db.inventory.map((device: Device) => ({
-            ...device,
-            rackId: '',
-            ports: Array.isArray(device.ports) ? device.ports : [],
-        }));
+    save();
 
-        cachedDb = db;
-        return db;
-    } catch (error) {
-        console.error('Error reading DB:', error);
-        throw new Error('Database read failed');
-    }
+    return (
+        loadDevicesForRack(device.rackId).find(
+            (candidate) => candidate.id === device.id,
+        ) || device
+    );
 }
 
-/**
- * Low-level helper to write to the JSON database.
- */
-async function writeDb(data: Database): Promise<void> {
-    cachedDb = data;
-    try {
-        const dir = path.dirname(DB_PATH);
-        await fs.mkdir(dir, { recursive: true });
-        await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
-    } catch (error) {
-        console.error('Error writing DB:', error);
-        throw new Error('Database write failed');
-    }
+function saveInventoryAsset(asset: Device): Device {
+    const db = getDb();
+    const now = Date.now();
+
+    const save = db.transaction(() => {
+        db.prepare(
+            `INSERT INTO inventory_assets (
+                id, name, u_height, type, depth, asset_tag, serial_number,
+                model, manufacturer, status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                u_height = excluded.u_height,
+                type = excluded.type,
+                depth = excluded.depth,
+                asset_tag = excluded.asset_tag,
+                serial_number = excluded.serial_number,
+                model = excluded.model,
+                manufacturer = excluded.manufacturer,
+                status = excluded.status,
+                updated_at = excluded.updated_at`,
+        ).run(
+            asset.id,
+            asset.name.trim(),
+            asset.uHeight,
+            asset.type,
+            asset.depth,
+            asset.assetTag || null,
+            asset.serialNumber || null,
+            asset.model || null,
+            asset.manufacturer || null,
+            asset.status,
+            now,
+            now,
+        );
+
+        const incomingPortIds = new Set((asset.ports || []).map((port) => port.id));
+        const existingPorts = db
+            .prepare('SELECT id FROM inventory_ports WHERE asset_id = ?')
+            .all(asset.id) as { id: string }[];
+
+        for (const existing of existingPorts) {
+            if (!incomingPortIds.has(existing.id)) {
+                db.prepare('DELETE FROM inventory_ports WHERE id = ?').run(
+                    existing.id,
+                );
+            }
+        }
+
+        const upsertPort = db.prepare(
+            `INSERT INTO inventory_ports (id, name, type, asset_id, status)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                type = excluded.type,
+                asset_id = excluded.asset_id,
+                status = excluded.status`,
+        );
+
+        for (const port of asset.ports || []) {
+            upsertPort.run(
+                port.id,
+                port.name,
+                port.type,
+                asset.id,
+                port.status || 'up',
+            );
+        }
+    });
+
+    save();
+
+    return getInventoryInternal().find((candidate) => candidate.id === asset.id) || asset;
 }
 
-/**
- * Fetches all available Floors.
- */
+function getInventoryInternal(): Device[] {
+    const db = getDb();
+    const rows = db
+        .prepare(
+            `SELECT id, name, u_height, type, depth, asset_tag, serial_number,
+                    model, manufacturer, status
+             FROM inventory_assets
+             ORDER BY name COLLATE NOCASE`,
+        )
+        .all() as InventoryRow[];
+
+    if (rows.length === 0) return [];
+
+    const ids = rows.map((row) => row.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const portRows = db
+        .prepare(
+            `SELECT id, name, type, asset_id, status
+             FROM inventory_ports
+             WHERE asset_id IN (${placeholders})
+             ORDER BY name`,
+        )
+        .all(...ids) as InventoryPortRow[];
+
+    const portsByAsset = new Map<string, Port[]>();
+    for (const id of ids) portsByAsset.set(id, []);
+    for (const row of portRows) {
+        const list = portsByAsset.get(row.asset_id) || [];
+        list.push({
+            id: row.id,
+            name: row.name,
+            type: row.type,
+            deviceId: row.asset_id,
+            status: row.status,
+        });
+        portsByAsset.set(row.asset_id, list);
+    }
+
+    return rows.map((row) =>
+        toInventoryDevice(row, portsByAsset.get(row.id) || []),
+    );
+}
+
 export const getFloors = createServerFn({ method: 'GET' }).handler(
     async (): Promise<Floor[]> => {
-        const db = await readDb();
-        const sqlite = getSqliteDb();
-
-        // Map SQLite Datacenters to Floors
-        const dcs = sqlite
-            .prepare('SELECT id, name, code, location FROM datacenters')
-            .all() as {
-            id: string;
-            name: string;
-            code: string;
-            location: string;
-        }[];
-        const dynamicFloors = dcs.map((dc) => ({
-            id: dc.code,
-            name: dc.name,
-            location: dc.location,
-        }));
-
-        // Merge with existing floors
-        const combined = [...dynamicFloors];
-        for (const f of db.floors || []) {
-            if (!combined.find((df) => df.id === f.id)) combined.push(f);
-        }
-        return combined;
+        await requireAuth();
+        return getDb()
+            .prepare(
+                'SELECT code AS id, name, location FROM datacenters ORDER BY name COLLATE NOCASE',
+            )
+            .all() as Floor[];
     },
 );
 
-/**
- * Fetches all rooms for a specific Floor.
- */
 export const getFloorRooms = createServerFn({ method: 'GET' })
     .inputValidator((data: string) => data)
     .handler(async (ctx): Promise<Room[]> => {
-        const db = await readDb();
-        return db.rooms.filter((r) => r.floorId === ctx.data);
+        await requireAuth();
+        const rows = getDb()
+            .prepare(
+                `SELECT id, name, floor_id, width, height, sort_order
+                 FROM rooms
+                 WHERE floor_id = ?
+                 ORDER BY sort_order, name COLLATE NOCASE`,
+            )
+            .all(ctx.data) as RoomRow[];
+        return rows.map(toRoom);
     });
 
-/**
- * Fetches all racks for a specific room.
- */
 export const getRoomRacks = createServerFn({ method: 'GET' })
     .inputValidator((data: string) => data)
     .handler(async (ctx): Promise<Rack[]> => {
-        const db = await readDb();
-        return db.racks.filter((r) => r.roomId === ctx.data);
+        await requireAuth();
+        const rows = getDb()
+            .prepare(
+                `SELECT id, name, room_id, u_capacity, x, y, sort_order
+                 FROM racks
+                 WHERE room_id = ?
+                 ORDER BY sort_order, name COLLATE NOCASE`,
+            )
+            .all(ctx.data) as RackRow[];
+        return rows.map((row) => toRack(row, getDeviceIdsForRack(row.id)));
     });
 
-/**
- * Fetches a rack and its full hierarchy (Room and Floor) for breadcrumbs.
- */
 export const getFullRackContext = createServerFn({ method: 'GET' })
     .inputValidator((data: string) => data)
     .handler(
@@ -167,56 +572,32 @@ export const getFullRackContext = createServerFn({ method: 'GET' })
             devices: Device[];
             connections: Connection[];
         }> => {
-            const { data } = ctx;
-            const db = await readDb();
+            await requireAuth();
 
-            const rack = db.racks.find((r) => r.id === data);
+            const rack = getRackById(ctx.data);
             if (!rack) throw new Error('Rack not found');
 
-            const room = db.rooms.find((r) => r.id === rack.roomId);
+            const room = getRoomById(rack.roomId);
             if (!room) throw new Error('Room not found');
 
-            let floor = db.floors.find((f) => f.id === room.floorId);
-            if (!floor) {
-                const sqlite = getSqliteDb();
-                const dcs = sqlite
-                    .prepare('SELECT id, name, code, location FROM datacenters')
-                    .all() as {
-                    id: string;
-                    name: string;
-                    code: string;
-                    location: string;
-                }[];
-                floor = dcs
-                    .map((dc) => ({
-                        id: dc.code,
-                        name: dc.name,
-                        location: dc.location,
-                    }))
-                    .find((df) => df.id === room.floorId);
-            }
-            if (!floor) throw new Error('Floor not found');
+            const floor = getFloor(room.floorId);
+            if (!floor) throw new Error('Datacenter not found');
 
-            const devices = db.devices.filter((d) =>
-                rack.devices.includes(d.id),
+            const devices = loadDevicesForRack(rack.id);
+            const connections = loadConnectionsForDevices(
+                devices.map((device) => device.id),
             );
 
-            // Phase 3: Get connections involving these devices
-            const portIds = devices.flatMap((d) =>
-                (d.ports || []).map((p) => p.id),
-            );
-            const connections = db.connections.filter(
-                (c) =>
-                    portIds.includes(c.portAId) || portIds.includes(c.portBId),
-            );
-
-            return { rack, room, floor, devices, connections };
+            return {
+                rack: { ...rack, devices: devices.map((device) => device.id) },
+                room,
+                floor,
+                devices,
+                connections,
+            };
         },
     );
 
-/**
- * Fetches a room and all its racks/devices for the 2D view.
- */
 export const getFullRoomContext = createServerFn({ method: 'GET' })
     .inputValidator((data: string) => data)
     .handler(
@@ -229,188 +610,113 @@ export const getFullRoomContext = createServerFn({ method: 'GET' })
             allDevices: Device[];
             connections: Connection[];
         }> => {
-            const { data: roomId } = ctx;
-            const db = await readDb();
+            await requireAuth();
 
-            const room = db.rooms.find((r) => r.id === roomId);
+            const room = getRoomById(ctx.data);
             if (!room) throw new Error('Room not found');
 
-            let floor = db.floors.find((f) => f.id === room.floorId);
-            if (!floor) {
-                const sqlite = getSqliteDb();
-                const dcs = sqlite
-                    .prepare('SELECT id, name, code, location FROM datacenters')
-                    .all() as {
-                    id: string;
-                    name: string;
-                    code: string;
-                    location: string;
-                }[];
-                floor = dcs
-                    .map((dc) => ({
-                        id: dc.code,
-                        name: dc.name,
-                        location: dc.location,
-                    }))
-                    .find((df) => df.id === room.floorId);
+            const floor = getFloor(room.floorId);
+            if (!floor) throw new Error('Datacenter not found');
+
+            const rackRows = getDb()
+                .prepare(
+                    `SELECT id, name, room_id, u_capacity, x, y, sort_order
+                     FROM racks
+                     WHERE room_id = ?
+                     ORDER BY sort_order, name COLLATE NOCASE`,
+                )
+                .all(room.id) as RackRow[];
+
+            const allDevices = loadDevicesForRacks(
+                rackRows.map((rack) => rack.id),
+            );
+            const devicesByRack = new Map<string, string[]>();
+            for (const device of allDevices) {
+                const list = devicesByRack.get(device.rackId) || [];
+                list.push(device.id);
+                devicesByRack.set(device.rackId, list);
             }
-            if (!floor) throw new Error('Floor not found');
 
-            const racks = db.racks.filter((r) => r.roomId === roomId);
-            const deviceIds = racks.flatMap((r) => r.devices);
-            const allDevices = db.devices.filter((d) =>
-                deviceIds.includes(d.id),
+            const racks = rackRows.map((rack) =>
+                toRack(rack, devicesByRack.get(rack.id) || []),
             );
 
-            // Phase 3: Get all connections on this room
-            const portIds = allDevices.flatMap((d) =>
-                (d.ports || []).map((p) => p.id),
-            );
-            const connections = db.connections.filter(
-                (c) =>
-                    portIds.includes(c.portAId) || portIds.includes(c.portBId),
+            const connections = loadConnectionsForDevices(
+                allDevices.map((device) => device.id),
             );
 
             return { room, racks, floor, allDevices, connections };
         },
     );
 
-/**
- * Updates the devices within a rack.
- */
 export const updateRackDevices = createServerFn({ method: 'POST' })
     .inputValidator((data: { rackId: string; devices: Device[] }) => data)
     .handler(async (ctx): Promise<{ success: boolean }> => {
         await requireAuth();
+        const db = getDb();
         const { rackId, devices } = ctx.data;
-        const db = await readDb();
 
-        const otherDevices = db.devices.filter((d) => d.rackId !== rackId);
-        db.devices = [...otherDevices, ...devices];
+        const transaction = db.transaction(() => {
+            const ids = new Set(devices.map((device) => device.id));
+            const existing = db
+                .prepare('SELECT id FROM devices WHERE rack_id = ?')
+                .all(rackId) as { id: string }[];
 
-        const rack = db.racks.find((r) => r.id === rackId);
-        if (rack) {
-            rack.devices = devices.map((d) => d.id);
-        }
+            for (const row of existing) {
+                if (!ids.has(row.id)) {
+                    db.prepare('DELETE FROM devices WHERE id = ?').run(row.id);
+                }
+            }
 
-        await writeDb(db);
+            for (const device of devices) {
+                saveDevice({ ...device, rackId });
+            }
+        });
+
+        transaction();
         return { success: true };
     });
 
-/**
- * Single function to Add or Update a device.
- */
 export const upsertDevice = createServerFn({ method: 'POST' })
     .inputValidator((data: Device) => data)
     .handler(async (ctx): Promise<{ success: boolean; device: Device }> => {
         await requireAuth();
-        const { data: device } = ctx;
-        const db = await readDb();
-
-        const rack = db.racks.find((r) => r.id === device.rackId);
-        if (!rack) {
-            throw new Error('Rack not found. Select a rack before adding an asset.');
-        }
-
-        const normalizedDevice: Device = {
-            ...device,
-            rackId: rack.id,
-            ports: (device.ports || []).map((port) => ({
-                ...port,
-                deviceId: device.id,
-            })),
-        };
-
-        if (
-            normalizedDevice.uPosition < 1 ||
-            normalizedDevice.uHeight < 1 ||
-            normalizedDevice.uPosition + normalizedDevice.uHeight - 1 >
-                rack.uCapacity
-        ) {
-            throw new Error(
-                `Asset placement must fit within rack capacity (1-${rack.uCapacity}U).`,
-            );
-        }
-
-        const index = db.devices.findIndex((d) => d.id === normalizedDevice.id);
-        if (index !== -1) {
-            const previousRackId = db.devices[index].rackId;
-            if (previousRackId !== rack.id) {
-                const previousRack = db.racks.find(
-                    (candidate) => candidate.id === previousRackId,
-                );
-                if (previousRack) {
-                    previousRack.devices = previousRack.devices.filter(
-                        (id) => id !== normalizedDevice.id,
-                    );
-                }
-            }
-            db.devices[index] = normalizedDevice;
-        } else {
-            db.devices.push(normalizedDevice);
-        }
-
-        if (!rack.devices.includes(normalizedDevice.id)) {
-            rack.devices.push(normalizedDevice.id);
-        }
-
-        await writeDb(db);
-        return { success: true, device: normalizedDevice };
+        const device = saveDevice(ctx.data);
+        return { success: true, device };
     });
 
-/**
- * Removes a device from the database and its parent rack.
- */
 export const deleteDevice = createServerFn({ method: 'POST' })
     .inputValidator((data: string) => data)
     .handler(async (ctx): Promise<{ success: boolean }> => {
         await requireAuth();
-        const { data: deviceId } = ctx;
-        const db = await readDb();
-
-        const device = db.devices.find((d) => d.id === deviceId);
-        if (!device) throw new Error('Device not found');
-
-        db.devices = db.devices.filter((d) => d.id !== deviceId);
-
-        const rack = db.racks.find((r) => r.id === device.rackId);
-        if (rack) {
-            rack.devices = rack.devices.filter((id) => id !== deviceId);
-        }
-
-        // Phase 3: Cleanup connections involving this device
-        const portIds = (device.ports || []).map((p) => p.id);
-        db.connections = db.connections.filter(
-            (c) => !portIds.includes(c.portAId) && !portIds.includes(c.portBId),
-        );
-
-        await writeDb(db);
+        const result = getDb().prepare('DELETE FROM devices WHERE id = ?').run(ctx.data);
+        if (result.changes === 0) throw new Error('Device not found');
         return { success: true };
     });
 
-/**
- * Updates a rack's (X, Y) position on the room grid.
- */
 export const updateRackPosition = createServerFn({ method: 'POST' })
     .inputValidator((data: { id: string; x: number; y: number }) => data)
     .handler(async (ctx): Promise<{ success: boolean }> => {
         await requireAuth();
         const { id, x, y } = ctx.data;
-        const db = await readDb();
+        const db = getDb();
 
-        const rack = db.racks.find((r) => r.id === id);
+        const rack = db
+            .prepare('SELECT room_id FROM racks WHERE id = ?')
+            .get(id) as { room_id: string } | undefined;
         if (!rack) throw new Error('Rack not found');
 
-        rack.x = x;
-        rack.y = y;
+        const occupied = db
+            .prepare(
+                'SELECT 1 FROM racks WHERE room_id = ? AND x = ? AND y = ? AND id <> ?',
+            )
+            .get(rack.room_id, x, y, id);
+        if (occupied) throw new Error('That room position is already occupied.');
 
-        await writeDb(db);
+        db.prepare('UPDATE racks SET x = ?, y = ? WHERE id = ?').run(x, y, id);
         return { success: true };
     });
 
-/**
- * Creates an interactive point-to-point cable connection between two ports.
- */
 export const connectPorts = createServerFn({ method: 'POST' })
     .inputValidator(
         (data: {
@@ -422,165 +728,146 @@ export const connectPorts = createServerFn({ method: 'POST' })
     .handler(
         async (ctx): Promise<{ success: boolean; connection: Connection }> => {
             await requireAuth();
-            const { data } = ctx;
-            const db = await readDb();
+            const db = getDb();
+            const { portAId, portBId, type } = ctx.data;
 
-            // Check if ports are already occupied
-            const existing = db.connections.find(
-                (c) =>
-                    c.portAId === data.portAId ||
-                    c.portBId === data.portAId ||
-                    c.portAId === data.portBId ||
-                    c.portBId === data.portBId,
-            );
-            if (existing)
-                throw new Error('One or both ports are already connected');
-
-            const connection: Connection = {
-                id: crypto.randomUUID(),
-                portAId: data.portAId,
-                portBId: data.portBId,
-                type: data.type,
-                status: 'active',
-                color: data.type === 'fiber' ? '#f59e0b' : '#3b82f6', // Orange for fiber, Blue for copper
-            };
-
-            db.connections.push(connection);
-
-            // Update port statuses
-            for (const device of db.devices) {
-                for (const port of device.ports || []) {
-                    if (port.id === data.portAId || port.id === data.portBId) {
-                        port.status = 'plugged';
-                    }
-                }
+            if (portAId === portBId) {
+                throw new Error('A port cannot be connected to itself.');
             }
 
-            await writeDb(db);
+            const ports = db
+                .prepare(
+                    'SELECT id FROM ports WHERE id IN (?, ?)',
+                )
+                .all(portAId, portBId) as { id: string }[];
+            if (ports.length !== 2) throw new Error('One or both ports were not found.');
+
+            const existing = db
+                .prepare(
+                    `SELECT id FROM connections
+                     WHERE port_a_id IN (?, ?) OR port_b_id IN (?, ?)`,
+                )
+                .get(portAId, portBId, portAId, portBId);
+            if (existing) throw new Error('One or both ports are already connected.');
+
+            const connection: Connection = {
+                id: randomUUID(),
+                portAId,
+                portBId,
+                type,
+                status: 'active',
+                color: type === 'fiber' ? '#f59e0b' : type === 'power' ? '#ef4444' : '#3b82f6',
+            };
+
+            const transaction = db.transaction(() => {
+                db.prepare(
+                    `INSERT INTO connections
+                        (id, port_a_id, port_b_id, type, color, status, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                ).run(
+                    connection.id,
+                    connection.portAId,
+                    connection.portBId,
+                    connection.type,
+                    connection.color || null,
+                    connection.status,
+                    Date.now(),
+                );
+                db.prepare(
+                    "UPDATE ports SET status = 'plugged' WHERE id IN (?, ?)",
+                ).run(portAId, portBId);
+            });
+
+            transaction();
             return { success: true, connection };
         },
     );
 
-/**
- * Removes a cable connection and frees up the ports.
- */
 export const disconnectPorts = createServerFn({ method: 'POST' })
     .inputValidator((data: string) => data)
     .handler(async (ctx): Promise<{ success: boolean }> => {
         await requireAuth();
-        const { data: connectionId } = ctx;
-        const db = await readDb();
+        const db = getDb();
 
-        const connection = db.connections.find((c) => c.id === connectionId);
+        const connection = db
+            .prepare(
+                'SELECT port_a_id, port_b_id FROM connections WHERE id = ?',
+            )
+            .get(ctx.data) as
+            | { port_a_id: string; port_b_id: string }
+            | undefined;
         if (!connection) throw new Error('Connection not found');
 
-        // Free ports
-        for (const device of db.devices) {
-            for (const port of device.ports || []) {
-                if (
-                    port.id === connection.portAId ||
-                    port.id === connection.portBId
-                ) {
-                    port.status = 'up'; // Or whatever default 'available' status is
-                }
-            }
-        }
+        const transaction = db.transaction(() => {
+            db.prepare('DELETE FROM connections WHERE id = ?').run(ctx.data);
+            db.prepare(
+                "UPDATE ports SET status = 'up' WHERE id IN (?, ?)",
+            ).run(connection.port_a_id, connection.port_b_id);
+        });
 
-        db.connections = db.connections.filter((c) => c.id !== connectionId);
-
-        await writeDb(db);
+        transaction();
         return { success: true };
     });
 
-/**
- * Fetches the user's library of master assets.
- */
 export const getInventory = createServerFn({ method: 'GET' }).handler(
     async (): Promise<Device[]> => {
-        const db = await readDb();
-        return db.inventory || [];
+        await requireAuth();
+        return getInventoryInternal();
     },
 );
 
-/**
- * Adds or updates a master asset in the palette.
- */
 export const upsertInventoryAsset = createServerFn({ method: 'POST' })
     .inputValidator((data: Device) => data)
     .handler(async (ctx): Promise<{ success: boolean; device: Device }> => {
         await requireAuth();
-        const { data: asset } = ctx;
-        const db = await readDb();
-
-        if (!db.inventory) db.inventory = [];
-
-        const normalizedAsset: Device = {
-            ...asset,
+        if (!ctx.data.name.trim()) throw new Error('Blueprint name is required.');
+        if (ctx.data.uHeight < 1) throw new Error('Blueprint height must be at least 1U.');
+        const device = saveInventoryAsset({
+            ...ctx.data,
             rackId: '',
             uPosition: 1,
-            ports: (asset.ports || []).map((port) => ({
-                ...port,
-                deviceId: asset.id,
-            })),
-        };
-
-        const index = db.inventory.findIndex(
-            (candidate) => candidate.id === normalizedAsset.id,
-        );
-        if (index !== -1) {
-            db.inventory[index] = normalizedAsset;
-        } else {
-            db.inventory.push(normalizedAsset);
-        }
-
-        await writeDb(db);
-        return { success: true, device: normalizedAsset };
+        });
+        return { success: true, device };
     });
 
-/**
- * Removes a master asset from the palette.
- */
 export const deleteInventoryAsset = createServerFn({ method: 'POST' })
     .inputValidator((data: string) => data)
     .handler(async (ctx): Promise<{ success: boolean }> => {
         await requireAuth();
-        const { data: assetId } = ctx;
-        const db = await readDb();
-
-        db.inventory = (db.inventory || []).filter((a) => a.id !== assetId);
-
-        await writeDb(db);
+        const result = getDb()
+            .prepare('DELETE FROM inventory_assets WHERE id = ?')
+            .run(ctx.data);
+        if (result.changes === 0) throw new Error('Blueprint not found');
         return { success: true };
     });
 
-/**
- * Clones a master asset in the palette.
- */
 export const duplicateInventoryAsset = createServerFn({ method: 'POST' })
     .inputValidator((data: string) => data)
     .handler(async (ctx): Promise<{ success: boolean; device: Device }> => {
         await requireAuth();
-        const { data: assetId } = ctx;
-        const db = await readDb();
+        const original = getInventoryInternal().find(
+            (asset) => asset.id === ctx.data,
+        );
+        if (!original) throw new Error('Blueprint not found');
 
-        const original = db.inventory.find((a) => a.id === assetId);
-        if (!original) throw new Error('Asset not found');
-
+        const id = randomUUID();
         const clone: Device = {
             ...original,
-            id: crypto.randomUUID(),
+            id,
             name: `${original.name} (Copy)`,
-            assetTag: original.assetTag ? `${original.assetTag}-COPY` : 'COPY',
+            assetTag: original.assetTag ? `${original.assetTag}-COPY` : undefined,
+            ports: original.ports.map((port) => ({
+                ...port,
+                id: randomUUID(),
+                deviceId: id,
+                status: 'up',
+            })),
         };
 
-        db.inventory.push(clone);
-        await writeDb(db);
-        return { success: true, device: clone };
+        const device = saveInventoryAsset(clone);
+        return { success: true, device };
     });
 
-/**
- * Creates a new Room in the database.
- */
 export const createRoom = createServerFn({ method: 'POST' })
     .inputValidator(
         (data: {
@@ -592,30 +879,45 @@ export const createRoom = createServerFn({ method: 'POST' })
     )
     .handler(async (ctx): Promise<{ success: boolean; room: Room }> => {
         await requireAuth();
-        const { data } = ctx;
-        const db = await readDb();
-        const crypto = await import('node:crypto');
+        const db = getDb();
+        const data = ctx.data;
 
-        const newRoom: Room = {
-            id: `rm-${crypto.randomUUID()}`,
-            name: data.name,
+        if (!data.name.trim()) throw new Error('Room name is required.');
+        if (!getFloor(data.floorId)) throw new Error('Datacenter not found.');
+
+        const nextOrder = (
+            db.prepare(
+                'SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM rooms WHERE floor_id = ?',
+            )
+                .get(data.floorId) as { next_order: number }
+        ).next_order;
+
+        const room: Room = {
+            id: `rm-${randomUUID()}`,
+            name: data.name.trim(),
             floorId: data.floorId,
-            width: data.width,
-            height: data.height,
-            order:
-                (db.rooms.length > 0
-                    ? Math.max(...db.rooms.map((r) => r.order || 0))
-                    : 0) + 1,
+            width: Math.max(1, data.width),
+            height: Math.max(1, data.height),
+            order: nextOrder,
         };
 
-        db.rooms.push(newRoom);
-        await writeDb(db);
-        return { success: true, room: newRoom };
+        db.prepare(
+            `INSERT INTO rooms
+                (id, name, floor_id, width, height, sort_order, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ).run(
+            room.id,
+            room.name,
+            room.floorId,
+            room.width,
+            room.height,
+            room.order,
+            Date.now(),
+        );
+
+        return { success: true, room };
     });
 
-/**
- * Creates a new Rack in the database.
- */
 export const createRack = createServerFn({ method: 'POST' })
     .inputValidator(
         (data: {
@@ -628,74 +930,75 @@ export const createRack = createServerFn({ method: 'POST' })
     )
     .handler(async (ctx): Promise<{ success: boolean; rack: Rack }> => {
         await requireAuth();
-        const { data } = ctx;
-        const db = await readDb();
-        const crypto = await import('node:crypto');
+        const db = getDb();
+        const data = ctx.data;
+        const room = getRoomById(data.roomId);
 
-        const room = db.rooms.find((candidate) => candidate.id === data.roomId);
-        if (!room) {
-            throw new Error('Target room not found. Refresh the page and try again.');
-        }
-
-        const name = data.name.trim();
-        if (!name) {
-            throw new Error('Rack name is required.');
-        }
-
+        if (!room) throw new Error('Target room not found.');
+        if (!data.name.trim()) throw new Error('Rack name is required.');
         if (![42, 48, 52].includes(data.uCapacity)) {
             throw new Error('Rack capacity must be 42U, 48U, or 52U.');
         }
 
-        const roomRacks = db.racks.filter((rack) => rack.roomId === data.roomId);
-        const occupied = new Set(
-            roomRacks.map((rack) => `${rack.x},${rack.y}`),
-        );
+        const existing = db
+            .prepare('SELECT x, y FROM racks WHERE room_id = ?')
+            .all(room.id) as { x: number; y: number }[];
+        const occupied = new Set(existing.map((entry) => `${entry.x},${entry.y}`));
 
-        let x = Number.isFinite(data.x) ? data.x : 0;
-        let y = Number.isFinite(data.y) ? data.y : 0;
+        let x = Math.max(0, Math.min(room.width - 1, data.x));
+        let y = Math.max(0, Math.min(room.height - 1, data.y));
 
         if (occupied.has(`${x},${y}`)) {
-            let freePosition: { x: number; y: number } | null = null;
-            for (let row = 0; row < Math.max(1, room.height); row += 1) {
-                for (let column = 0; column < Math.max(1, room.width); column += 1) {
+            let found = false;
+            for (let row = 0; row < room.height && !found; row += 1) {
+                for (let column = 0; column < room.width; column += 1) {
                     if (!occupied.has(`${column},${row}`)) {
-                        freePosition = { x: column, y: row };
+                        x = column;
+                        y = row;
+                        found = true;
                         break;
                     }
                 }
-                if (freePosition) break;
             }
-
-            if (!freePosition) {
-                throw new Error('No free rack position is available in this room.');
-            }
-
-            x = freePosition.x;
-            y = freePosition.y;
+            if (!found) throw new Error('No free rack position is available in this room.');
         }
 
-        const newRack: Rack = {
-            id: `rk-${crypto.randomUUID()}`,
-            name,
-            roomId: data.roomId,
+        const nextOrder = (
+            db.prepare(
+                'SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM racks WHERE room_id = ?',
+            )
+                .get(room.id) as { next_order: number }
+        ).next_order;
+
+        const rack: Rack = {
+            id: `rk-${randomUUID()}`,
+            name: data.name.trim(),
+            roomId: room.id,
             uCapacity: data.uCapacity,
             devices: [],
             x,
             y,
-            order:
-                (roomRacks.length > 0
-                    ? Math.max(...roomRacks.map((rack) => rack.order || 0))
-                    : 0) + 1,
+            order: nextOrder,
         };
 
-        db.racks.push(newRack);
-        await writeDb(db);
-        return { success: true, rack: newRack };
+        db.prepare(
+            `INSERT INTO racks
+                (id, name, room_id, u_capacity, x, y, sort_order, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).run(
+            rack.id,
+            rack.name,
+            rack.roomId,
+            rack.uCapacity,
+            rack.x,
+            rack.y,
+            rack.order,
+            Date.now(),
+        );
+
+        return { success: true, rack };
     });
 
-/**
- * Fetches all floors, rooms, and racks for the infrastructure navigator.
- */
 export const getInfrastructureSummary = createServerFn({
     method: 'GET',
 }).handler(
@@ -704,146 +1007,114 @@ export const getInfrastructureSummary = createServerFn({
         rooms: Room[];
         racks: Rack[];
     }> => {
-        const db = await readDb();
-        const sqlite = getSqliteDb();
+        await requireAuth();
+        const db = getDb();
 
-        // Map SQLite Datacenters to Floors
-        const dcs = sqlite
-            .prepare('SELECT id, name, code, location FROM datacenters')
-            .all() as {
-            id: string;
-            name: string;
-            code: string;
-            location: string;
-        }[];
-        const dynamicFloors = dcs.map((dc) => ({
-            id: dc.code,
-            name: dc.name,
-            location: dc.location,
-        }));
+        const floors = db
+            .prepare(
+                'SELECT code AS id, name, location FROM datacenters ORDER BY name COLLATE NOCASE',
+            )
+            .all() as Floor[];
 
-        // Merge with existing floors
-        const combined = [...dynamicFloors];
-        for (const f of db.floors || []) {
-            if (!combined.find((df) => df.id === f.id)) combined.push(f);
+        const roomRows = db
+            .prepare(
+                `SELECT id, name, floor_id, width, height, sort_order
+                 FROM rooms
+                 ORDER BY floor_id, sort_order, name COLLATE NOCASE`,
+            )
+            .all() as RoomRow[];
+
+        const rackRows = db
+            .prepare(
+                `SELECT id, name, room_id, u_capacity, x, y, sort_order
+                 FROM racks
+                 ORDER BY room_id, sort_order, name COLLATE NOCASE`,
+            )
+            .all() as RackRow[];
+
+        const devices = db
+            .prepare('SELECT id, rack_id FROM devices')
+            .all() as { id: string; rack_id: string }[];
+        const devicesByRack = new Map<string, string[]>();
+        for (const device of devices) {
+            const list = devicesByRack.get(device.rack_id) || [];
+            list.push(device.id);
+            devicesByRack.set(device.rack_id, list);
         }
 
         return {
-            floors: combined,
-            rooms: (db.rooms || []).sort(
-                (a, b) => (a.order || 0) - (b.order || 0),
-            ),
-            racks: (db.racks || []).sort(
-                (a, b) => (a.order || 0) - (b.order || 0),
+            floors,
+            rooms: roomRows.map(toRoom),
+            racks: rackRows.map((row) =>
+                toRack(row, devicesByRack.get(row.id) || []),
             ),
         };
     },
 );
 
-/**
- * Updates a Room's properties.
- */
 export const updateRoom = createServerFn({ method: 'POST' })
     .inputValidator((data: { id: string; name: string }) => data)
     .handler(async (ctx): Promise<{ success: boolean }> => {
         await requireAuth();
-        const { data } = ctx;
-        const db = await readDb();
-        const room = db.rooms.find((r) => r.id === data.id);
-        if (!room) throw new Error('Room not found');
-        room.name = data.name;
-        await writeDb(db);
+        const name = ctx.data.name.trim();
+        if (!name) throw new Error('Room name is required.');
+
+        const result = getDb()
+            .prepare('UPDATE rooms SET name = ? WHERE id = ?')
+            .run(name, ctx.data.id);
+        if (result.changes === 0) throw new Error('Room not found');
         return { success: true };
     });
 
-/**
- * Deletes a Room and all its nested Racks and Devices.
- */
 export const deleteRoom = createServerFn({ method: 'POST' })
     .inputValidator((data: string) => data)
     .handler(async (ctx): Promise<{ success: boolean }> => {
         await requireAuth();
-        const { data: roomId } = ctx;
-        const db = await readDb();
-
-        const roomRacks = db.racks.filter((r) => r.roomId === roomId);
-        const deviceIds = roomRacks.flatMap((r) => r.devices);
-
-        // 3. Remove connections involving those devices
-        const devicePorts = db.devices
-            .filter((d) => deviceIds.includes(d.id))
-            .flatMap((d) => (d.ports || []).map((p) => p.id));
-
-        db.connections = db.connections.filter(
-            (c) =>
-                !devicePorts.includes(c.portAId) &&
-                !devicePorts.includes(c.portBId),
-        );
-
-        // 4. Remove devices, racks, and room
-        db.devices = db.devices.filter((d) => !deviceIds.includes(d.id));
-        db.racks = db.racks.filter((r) => r.roomId !== roomId);
-        db.rooms = db.rooms.filter((r) => r.id !== roomId);
-
-        await writeDb(db);
+        const result = getDb().prepare('DELETE FROM rooms WHERE id = ?').run(ctx.data);
+        if (result.changes === 0) throw new Error('Room not found');
         return { success: true };
     });
 
-/**
- * Updates a Rack's properties (Name, Capacity).
- */
 export const updateRack = createServerFn({ method: 'POST' })
     .inputValidator(
         (data: { id: string; name: string; uCapacity: number }) => data,
     )
     .handler(async (ctx): Promise<{ success: boolean }> => {
         await requireAuth();
-        const { data } = ctx;
-        const db = await readDb();
-        const rack = db.racks.find((r) => r.id === data.id);
-        if (!rack) throw new Error('Rack not found');
-        rack.name = data.name;
-        rack.uCapacity = data.uCapacity;
-        await writeDb(db);
+        const name = ctx.data.name.trim();
+        if (!name) throw new Error('Rack name is required.');
+
+        const currentUsage = getDb()
+            .prepare(
+                `SELECT COALESCE(MAX(u_position + u_height - 1), 0) AS max_u
+                 FROM devices WHERE rack_id = ?`,
+            )
+            .get(ctx.data.id) as { max_u: number };
+
+        if (currentUsage.max_u > ctx.data.uCapacity) {
+            throw new Error(
+                `Rack contains a device above ${ctx.data.uCapacity}U and cannot be resized yet.`,
+            );
+        }
+
+        const result = getDb()
+            .prepare(
+                'UPDATE racks SET name = ?, u_capacity = ? WHERE id = ?',
+            )
+            .run(name, ctx.data.uCapacity, ctx.data.id);
+        if (result.changes === 0) throw new Error('Rack not found');
         return { success: true };
     });
 
-/**
- * Deletes a Rack and all its Devices.
- */
 export const deleteRack = createServerFn({ method: 'POST' })
     .inputValidator((data: string) => data)
     .handler(async (ctx): Promise<{ success: boolean }> => {
         await requireAuth();
-        const { data: rackId } = ctx;
-        const db = await readDb();
-
-        const rack = db.racks.find((r) => r.id === rackId);
-        if (!rack) throw new Error('Rack not found');
-
-        const deviceIds = rack.devices;
-
-        // Cleanup connections
-        const devicePorts = db.devices
-            .filter((d) => deviceIds.includes(d.id))
-            .flatMap((d) => (d.ports || []).map((p) => p.id));
-
-        db.connections = db.connections.filter(
-            (c) =>
-                !devicePorts.includes(c.portAId) &&
-                !devicePorts.includes(c.portBId),
-        );
-
-        db.devices = db.devices.filter((d) => !deviceIds.includes(d.id));
-        db.racks = db.racks.filter((r) => r.id !== rackId);
-
-        await writeDb(db);
+        const result = getDb().prepare('DELETE FROM racks WHERE id = ?').run(ctx.data);
+        if (result.changes === 0) throw new Error('Rack not found');
         return { success: true };
     });
 
-/**
- * Updates the order of rooms or racks.
- */
 export const updateEntityOrder = createServerFn({ method: 'POST' })
     .inputValidator(
         (data: {
@@ -853,21 +1124,20 @@ export const updateEntityOrder = createServerFn({ method: 'POST' })
     )
     .handler(async (ctx): Promise<{ success: boolean }> => {
         await requireAuth();
-        const { type, orders } = ctx.data;
-        const db = await readDb();
+        const db = getDb();
+        const table = ctx.data.type === 'room' ? 'rooms' : 'racks';
 
-        if (type === 'room') {
-            orders.forEach(({ id, order }) => {
-                const room = db.rooms.find((r) => r.id === id);
-                if (room) room.order = order;
-            });
-        } else {
-            orders.forEach(({ id, order }) => {
-                const rack = db.racks.find((r) => r.id === id);
-                if (rack) rack.order = order;
-            });
-        }
+        const update = db.prepare(
+            `UPDATE ${table} SET sort_order = ? WHERE id = ?`,
+        );
+        const transaction = db.transaction(() => {
+            for (const item of ctx.data.orders) {
+                update.run(item.order, item.id);
+            }
+        });
 
-        await writeDb(db);
+        transaction();
         return { success: true };
     });
+
+export type { Database };
