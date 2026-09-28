@@ -1,0 +1,11 @@
+node_modules
+.output
+.git
+.gitignore
+.vscode
+.node*
+.pnpm-store
+*.log
+data/*.sqlite
+data/*.sqlite-*
+data/*.json
