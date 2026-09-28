@@ -130,13 +130,13 @@ function DashboardPage() {
     };
 
     return (
-        <main className="w-full px-4 md:px-8 pb-16 pt-8">
-            <div className="max-w-300 w-full mx-auto">
+        <main className="w-full px-4 md:px-6 pb-12 pt-6">
+            <div className="page-wrap">
                 {/* Page Header */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 border-b border-(--line) pb-6">
+                <div className="ops-toolbar rounded-xl px-5 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
                     <div>
                         <p className="island-kicker mb-2">Infrastructure</p>
-                        <h1 className="text-3xl font-black text-(--sea-ink) tracking-tighter">
+                        <h1 className="text-2xl font-extrabold text-(--sea-ink) tracking-tight">
                             Your Datacenters
                         </h1>
                         <p className="text-sm text-(--sea-ink-soft) mt-1 font-medium">
@@ -157,7 +157,7 @@ function DashboardPage() {
 
                 {/* Create Datacenter Form */}
                 {showForm && (
-                    <div className="mb-8 island-shell rounded-2xl p-6 border-2 border-(--lagoon-deep)/20 animate-in zoom-in-95 duration-200">
+                    <div className="mb-8 ops-panel rounded-xl p-5 border-2 border-(--lagoon-deep)/20 animate-in zoom-in-95 duration-200">
                         <h2 className="text-base font-black text-(--sea-ink) mb-5 flex items-center gap-2">
                             <Plus size={16} className="text-(--lagoon-deep)" />
                             New Datacenter
@@ -250,7 +250,7 @@ function DashboardPage() {
 
                 {/* Edit Datacenter Form */}
                 {editingDc && (
-                    <div className="mb-8 island-shell rounded-2xl p-6 border-2 border-emerald-500/20 animate-in zoom-in-95 duration-200">
+                    <div className="mb-8 ops-panel rounded-xl p-5 border-2 border-emerald-500/20 animate-in zoom-in-95 duration-200">
                         <h2 className="text-base font-black text-(--sea-ink) mb-5 flex items-center gap-2">
                             <Pencil size={16} className="text-emerald-500" />
                             Edit Datacenter: {editingDc.code}
@@ -369,10 +369,10 @@ function DatacenterCard({
             <button
                 type="button"
                 onClick={onClick}
-                className="island-shell feature-card rounded-2xl p-6 text-left cursor-pointer w-full border border-(--line) hover:border-(--lagoon-deep)/30 transition-all"
+                className="island-shell feature-card rounded-xl p-5 text-left cursor-pointer w-full border border-(--line) hover:border-(--lagoon-deep)/30 transition-all"
             >
                 <div className="flex items-start justify-between mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-(--lagoon-deep)/10 border border-(--lagoon-deep)/20 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-(--lagoon-deep)/10 border border-(--lagoon-deep)/20 flex items-center justify-center">
                         <Server size={18} className="text-(--lagoon-deep)" />
                     </div>
                     <ArrowRight
