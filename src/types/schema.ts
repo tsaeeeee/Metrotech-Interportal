@@ -19,7 +19,14 @@ export type DeviceType =
     | 'storage'
     | 'pdu'
     | 'cable'
-    | 'panel';
+    | 'panel'
+    | 'airflow';
+
+export type AssetCategory = 'switch' | 'server' | 'other';
+export type OtherAssetKind =
+    | 'cable-management'
+    | 'blanking-panel'
+    | 'geist-switchair';
 export type AssetStatus =
     | 'active'
     | 'maintenance'
@@ -53,9 +60,13 @@ export interface Device {
     uPosition: number;
     type: DeviceType;
     depth: 'full' | 'half';
-    // New Metadata
-    assetTag?: string;
+    category?: AssetCategory;
+    brand?: string;
+    equipmentType?: string;
+    otherKind?: OtherAssetKind;
     serialNumber?: string;
+    // Legacy metadata kept for backward-compatible reads only.
+    assetTag?: string;
     model?: string;
     manufacturer?: string;
     status: AssetStatus;
