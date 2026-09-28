@@ -109,9 +109,16 @@ export function AssetForm({
     onUpdateConnections,
 }: AssetFormProps) {
     const upsertInventoryFn = useServerFn(upsertInventoryAsset);
+    const upsertDeviceFn = useServerFn(upsertDevice);
+    const deleteInventoryFn = useServerFn(deleteInventoryAsset);
+    const deleteDeviceFn = useServerFn(deleteDevice);
+    const connectPortsFn = useServerFn(connectPorts);
+    const disconnectPortsFn = useServerFn(disconnectPorts);
     const [activeTab, setActiveTab] = useState<'info' | 'connections'>('info');
     const [isPatching, setIsPatching] = useState<Port | null>(null);
     const [showOthers, setShowOthers] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
     const [formData, setFormData] = useState<Device>({
         id: crypto.randomUUID(),
         name: '',
@@ -131,8 +138,15 @@ export function AssetForm({
     useEffect(() => {
         if (device) {
             setFormData(device);
+            return;
         }
-    }, [device]);
+
+        setFormData((prev) => ({
+            ...prev,
+            rackId: mode === 'rack' ? rackId : '',
+            uPosition: 1,
+        }));
+    }, [device, mode, rackId]);
 
     const applyPreset = (
         preset: (typeof BASE_PRESETS | typeof OTHER_PRESETS)[0],
@@ -160,17 +174,33 @@ export function AssetForm({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError('');
+        setSaving(true);
 
-        let result: { success: boolean; device?: Device; asset?: Device };
-        if (mode === 'inventory') {
-            result = await upsertInventoryFn({ data: formData as Device });
-        } else {
-            result = await upsertDevice({ data: formData as Device });
-        }
+        try {
+            if (mode === 'rack' && !rackId) {
+                throw new Error('Select a rack before adding an asset.');
+            }
 
-        if (result.success) {
-            const savedDevice = result.device || result.asset;
-            if (savedDevice) onSave(savedDevice);
+            const payload: Device = {
+                ...formData,
+                rackId: mode === 'rack' ? rackId : '',
+            };
+
+            const result =
+                mode === 'inventory'
+                    ? await upsertInventoryFn({ data: payload })
+                    : await upsertDeviceFn({ data: payload });
+
+            if (result.success && result.device) {
+                onSave(result.device);
+            }
+        } catch (err) {
+            setError(
+                err instanceof Error ? err.message : 'Failed to save asset',
+            );
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -184,8 +214,8 @@ export function AssetForm({
         if (confirm(msg)) {
             const result =
                 mode === 'inventory'
-                    ? await deleteInventoryAsset({ data: device.id })
-                    : await deleteDevice({ data: device.id });
+                    ? await deleteInventoryFn({ data: device.id })
+                    : await deleteDeviceFn({ data: device.id });
 
             if (result.success) {
                 onDelete(device.id);
@@ -209,7 +239,7 @@ export function AssetForm({
     const handleConnect = async (targetPortId: string) => {
         if (!isPatching) return;
         try {
-            const result = await connectPorts({
+            const result = await connectPortsFn({
                 data: {
                     portAId: isPatching.id,
                     portBId: targetPortId,
@@ -228,7 +258,7 @@ export function AssetForm({
 
     const handleDisconnect = async (connectionId: string) => {
         try {
-            const result = await disconnectPorts({ data: connectionId });
+            const result = await disconnectPortsFn({ data: connectionId });
             if (result.success) {
                 onUpdateConnections();
             }
@@ -589,14 +619,22 @@ export function AssetForm({
                     </div>
 
                     <div className="flex flex-col gap-3 pt-6 border-t border-zinc-200 dark:border-white/10">
+                        {error && (
+                            <div className="px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-sm font-medium">
+                                {error}
+                            </div>
+                        )}
                         <button
                             type="submit"
+                            disabled={saving}
                             className={cn(
                                 'w-full bg-(--sea-teal) hover:bg-(--sea-aqua) text-(--sea-ink) font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer',
                             )}
                         >
                             <Save size={18} />
-                            {device
+                            {saving
+                                ? 'Saving...'
+                                : device
                                 ? mode === 'inventory'
                                     ? 'Update Master'
                                     : 'Update Asset'
