@@ -886,11 +886,11 @@ function App() {
                     title={
                         selectedDevice
                             ? drawerMode === 'inventory'
-                                ? 'Edit Master Blueprint'
-                                : 'Edit Infrastructure Asset'
+                                ? 'Edit Library Asset'
+                                : 'Edit Rack Asset'
                             : drawerMode === 'inventory'
-                              ? 'Design New Blueprint'
-                              : 'Register New Asset'
+                              ? 'Add Library Asset'
+                              : 'Add Rack Asset'
                     }
                 >
                     <AssetForm
