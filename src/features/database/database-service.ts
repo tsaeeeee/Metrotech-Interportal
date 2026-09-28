@@ -17,8 +17,26 @@ async function requireAuth() {
 
 function parseDevice(payload: string): Device {
     const device = JSON.parse(payload) as Device;
+    const category =
+        device.category ??
+        (device.type === 'network'
+            ? 'switch'
+            : device.type === 'server'
+              ? 'server'
+              : 'other');
+
     return {
         ...device,
+        category,
+        brand: device.brand ?? device.manufacturer ?? '',
+        equipmentType: device.equipmentType ?? device.model ?? '',
+        otherKind:
+            device.otherKind ??
+            (device.type === 'cable'
+                ? 'cable-management'
+                : device.type === 'panel'
+                  ? 'blanking-panel'
+                  : undefined),
         uHeight: Number(device.uHeight) || 1,
         uPosition: Number(device.uPosition) || 1,
         depth: device.depth || 'full',
@@ -631,7 +649,8 @@ export const duplicateInventoryAsset = createServerFn({ method: 'POST' })
             ...original,
             id,
             name: `${original.name} (Copy)`,
-            assetTag: original.assetTag ? `${original.assetTag}-COPY` : 'COPY',
+            serialNumber:
+                original.category === 'other' ? undefined : original.serialNumber,
             ports: (original.ports || []).map((port) => ({
                 ...port,
                 id: crypto.randomUUID(),
