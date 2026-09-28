@@ -21,7 +21,7 @@ export function AssetTray({
     onDeleteMaster,
 }: AssetTrayProps) {
     return (
-        <div className="island-shell rounded-2xl p-6 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 shadow-sm min-h-[400px] flex flex-col">
+        <div className="ops-panel rounded-xl p-4 min-h-[360px] flex flex-col">
             <div className="flex items-center justify-between mb-4 px-1">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">
                     Asset Library
@@ -112,7 +112,7 @@ function DraggableAsset({
             ref={setNodeRef}
             style={style}
             className={cn(
-                'group relative flex items-center gap-3 p-2.5 rounded-xl border transition-all select-none',
+                'group relative flex items-center gap-3 p-2.5 rounded-lg border transition-all select-none',
                 isDragging
                     ? 'opacity-20 grayscale border-dashed border-zinc-300 dark:border-zinc-700 pointer-events-none'
                     : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 hover:border-(--lagoon) dark:hover:border-(--lagoon) hover:shadow-md cursor-grab active:cursor-grabbing',
