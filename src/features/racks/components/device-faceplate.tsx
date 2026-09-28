@@ -161,6 +161,107 @@ function ServerFaceplate({
     const pxHeight = uHeight * 24 - 2;
     const innerHeight = Math.max(8, pxHeight - 8);
 
+    if (profile === 'supermicro' || profile === 'supermicro-gpu') {
+        const isGpu = profile === 'supermicro-gpu';
+        const rows = isGpu ? 2 : 2;
+        const columns = isGpu ? 4 : 6;
+        const bayGap = 2;
+        const bayStartX = isGpu ? 118 : 74;
+        const bayEndX = 304;
+        const bayWidth =
+            (bayEndX - bayStartX - bayGap * (columns - 1)) / columns;
+        const bayHeight = Math.max(
+            8,
+            (innerHeight - bayGap * (rows - 1)) / rows,
+        );
+
+        return (
+            <g>
+                <rect
+                    x="14"
+                    y="4"
+                    width={isGpu ? 94 : 50}
+                    height={innerHeight}
+                    rx="2"
+                    fill="#151C20"
+                    stroke="#334155"
+                    strokeWidth="0.6"
+                />
+                <text
+                    x={isGpu ? 61 : 39}
+                    y={Math.max(10, pxHeight / 2 + 2)}
+                    textAnchor="middle"
+                    fontSize={isGpu ? '6' : '5'}
+                    fontWeight="800"
+                    fill="#CBD5E1"
+                >
+                    SUPERMICRO
+                </text>
+
+                {isGpu && (
+                    <>
+                        {Array.from({ length: 3 }).map((_, index) => (
+                            <circle
+                                // biome-ignore lint/suspicious/noArrayIndexKey: decorative fan
+                                key={index}
+                                cx={28 + index * 26}
+                                cy={Math.max(14, pxHeight / 2 + 11)}
+                                r="8"
+                                fill="#0F172A"
+                                stroke="#475569"
+                                strokeWidth="1"
+                            />
+                        ))}
+                        <rect
+                            x="20"
+                            y="8"
+                            width="70"
+                            height="7"
+                            rx="2"
+                            fill="#1E293B"
+                        />
+                    </>
+                )}
+
+                {Array.from({ length: rows * columns }).map((_, index) => {
+                    const row = Math.floor(index / columns);
+                    const column = index % columns;
+                    const x = bayStartX + column * (bayWidth + bayGap);
+                    const y = 4 + row * (bayHeight + bayGap);
+
+                    return (
+                        <g key={`supermicro-bay-${index}`}>
+                            <rect
+                                x={x}
+                                y={y}
+                                width={bayWidth}
+                                height={bayHeight}
+                                rx="1"
+                                fill="#232E34"
+                                stroke="#64748B"
+                                strokeWidth="0.5"
+                            />
+                            <rect
+                                x={x + 2}
+                                y={y + 2}
+                                width={Math.max(3, bayWidth - 4)}
+                                height="2"
+                                rx="0.5"
+                                fill="#0F172A"
+                            />
+                            <circle
+                                cx={x + 3}
+                                cy={Math.max(y + 6, y + bayHeight - 3)}
+                                r="0.9"
+                                fill="#10B981"
+                            />
+                        </g>
+                    );
+                })}
+            </g>
+        );
+    }
+
     if (profile === 'cricket') {
         const rowHeight = Math.max(4, (innerHeight - 2) / 2);
 
