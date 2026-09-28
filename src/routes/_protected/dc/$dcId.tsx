@@ -776,7 +776,6 @@ function App() {
                                 <RackUGrid
                                     uCapacity={rackData.rack.uCapacity}
                                     devices={rackData.devices}
-                                    connections={rackData.connections}
                                     onMoveDevice={handleMoveDevice}
                                     onEditDevice={handleEditAsset}
                                     projectedPlacement={projectedPlacement}
@@ -896,18 +895,9 @@ function App() {
                     <AssetForm
                         mode={drawerMode}
                         device={selectedDevice}
-                        allDevices={
-                            roomData?.allDevices || rackData?.devices || []
-                        }
-                        connections={
-                            viewMode === 'rack'
-                                ? rackData?.connections || []
-                                : roomData?.connections || []
-                        }
                         rackId={rackData?.rack.id || 'rk-01'}
                         onSave={handleAssetSaved}
                         onDelete={handleAssetSaved}
-                        onUpdateConnections={refreshData}
                     />
                 </Drawer>
 
