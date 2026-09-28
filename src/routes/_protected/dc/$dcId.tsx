@@ -21,6 +21,7 @@ import React, {
     useRef,
     useState,
 } from 'react';
+import { createId } from '#/lib/id';
 import { cn } from '#/lib/utils';
 import type { Connection, Device, Floor, Rack, Room } from '#/types/schema';
 import { BreadcrumbNav } from '../../../components/breadcrumb-nav';
@@ -579,7 +580,7 @@ function App() {
                 // 1. Dropping an Inventory Blueprint onto the rack grid
                 if (active.data.current?.type === 'master') {
                     const blueprint = active.data.current.device;
-                    const newId = crypto.randomUUID();
+                    const newId = createId();
                     const newAsset: Device = {
                         ...blueprint,
                         id: newId,
@@ -588,7 +589,7 @@ function App() {
                         status: 'active',
                         ports: (blueprint.ports || []).map((port: Device['ports'][number]) => ({
                             ...port,
-                            id: crypto.randomUUID(),
+                            id: createId(),
                             deviceId: newId,
                             status: 'up',
                         })),
