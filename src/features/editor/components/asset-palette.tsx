@@ -7,6 +7,7 @@ import { DeviceFaceplate } from '../../racks/components/device-faceplate';
 
 interface AssetTrayProps {
     inventory: Device[];
+    onAddMaster: () => void;
     onEditMaster: (asset: Device) => void;
     onDuplicateMaster: (id: string) => void;
     onDeleteMaster: (id: string) => void;
@@ -14,6 +15,7 @@ interface AssetTrayProps {
 
 export function AssetTray({
     inventory,
+    onAddMaster,
     onEditMaster,
     onDuplicateMaster,
     onDeleteMaster,
@@ -24,9 +26,20 @@ export function AssetTray({
                 <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">
                     Asset Library
                 </h3>
-                <span className="text-[10px] font-black text-(--sea-ink-soft) dark:text-(--lagoon) bg-zinc-100 dark:bg-zinc-800/80 px-2.5 py-1 rounded-full border border-zinc-200 dark:border-zinc-700 transition-all shadow-sm">
-                    {inventory.length} Blueprints
-                </span>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-(--sea-ink-soft) dark:text-(--lagoon) bg-zinc-100 dark:bg-zinc-800/80 px-2.5 py-1 rounded-full border border-zinc-200 dark:border-zinc-700 transition-all shadow-sm">
+                        {inventory.length} Blueprints
+                    </span>
+                    <button
+                        type="button"
+                        onClick={onAddMaster}
+                        className="w-7 h-7 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-(--sea-teal) hover:border-(--sea-teal)/40 transition-colors"
+                        title="New Blueprint"
+                        aria-label="Create new asset blueprint"
+                    >
+                        <PlusCircle size={14} />
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto pr-1 -mr-1 custom-scrollbar">
