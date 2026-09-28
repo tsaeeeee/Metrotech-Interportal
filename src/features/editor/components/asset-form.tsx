@@ -21,6 +21,7 @@ import {
     upsertInventoryAsset,
 } from '#/features/database/database-service';
 import { createId } from '#/lib/id';
+import { SERVER_CATALOG, getServerCatalogItem } from '../server-catalog';
 import { cn } from '#/lib/utils';
 import type {
     AssetCategory,
@@ -288,6 +289,26 @@ export function AssetForm({
                 name === 'uHeight' || name === 'uPosition'
                     ? Number(value)
                     : value,
+        }));
+    };
+
+    const handleServerTypeChange = (
+        event: React.ChangeEvent<HTMLSelectElement>,
+    ) => {
+        const equipmentType = event.target.value;
+        const catalogItem = getServerCatalogItem(equipmentType);
+
+        setFormData((prev) => ({
+            ...prev,
+            equipmentType,
+            uHeight: catalogItem?.defaultUHeight ?? prev.uHeight,
+            brand:
+                catalogItem?.brandHint &&
+                (!prev.brand ||
+                    prev.brand === 'CIARA' ||
+                    prev.brand === 'Jabil')
+                    ? catalogItem.brandHint
+                    : prev.brand,
         }));
     };
 
@@ -561,22 +582,65 @@ export function AssetForm({
                                         >
                                             Type
                                         </label>
-                                        <input
-                                            required
-                                            id="equipmentType"
-                                            type="text"
-                                            name="equipmentType"
-                                            value={
-                                                formData.equipmentType || ''
-                                            }
-                                            onChange={handleChange}
-                                            className="asset-control"
-                                            placeholder={
-                                                category === 'switch'
-                                                    ? 'QFX5120...'
-                                                    : 'PowerEdge R760...'
-                                            }
-                                        />
+                                        {category === 'server' ? (
+                                            <select
+                                                required
+                                                id="equipmentType"
+                                                name="equipmentType"
+                                                value={
+                                                    formData.equipmentType || ''
+                                                }
+                                                onChange={
+                                                    handleServerTypeChange
+                                                }
+                                                className="asset-control"
+                                            >
+                                                <option value="">
+                                                    Select server type
+                                                </option>
+                                                {formData.equipmentType &&
+                                                    !getServerCatalogItem(
+                                                        formData.equipmentType,
+                                                    ) && (
+                                                        <option
+                                                            value={
+                                                                formData.equipmentType
+                                                            }
+                                                        >
+                                                            {
+                                                                formData.equipmentType
+                                                            }
+                                                        </option>
+                                                    )}
+                                                {SERVER_CATALOG.map(
+                                                    (serverType) => (
+                                                        <option
+                                                            key={
+                                                                serverType.value
+                                                            }
+                                                            value={
+                                                                serverType.value
+                                                            }
+                                                        >
+                                                            {serverType.label}
+                                                        </option>
+                                                    ),
+                                                )}
+                                            </select>
+                                        ) : (
+                                            <input
+                                                required
+                                                id="equipmentType"
+                                                type="text"
+                                                name="equipmentType"
+                                                value={
+                                                    formData.equipmentType || ''
+                                                }
+                                                onChange={handleChange}
+                                                className="asset-control"
+                                                placeholder="QFX5120..."
+                                            />
+                                        )}
                                     </div>
                                 </div>
 
