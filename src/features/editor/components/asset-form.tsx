@@ -151,13 +151,23 @@ export function AssetForm({
     useEffect(() => {
         if (device) {
             const normalizedCategory = deriveCategory(device);
+            const equipmentType =
+                device.equipmentType ?? device.model ?? '';
+
             setFormData({
                 ...device,
                 category: normalizedCategory,
                 brand: device.brand ?? device.manufacturer ?? '',
-                equipmentType: device.equipmentType ?? device.model ?? '',
+                equipmentType,
                 serialNumber: device.serialNumber ?? '',
                 rackId: mode === 'rack' ? rackId : '',
+                uHeight:
+                    normalizedCategory === 'server'
+                        ? inferServerRackHeight(
+                              equipmentType,
+                              device.uHeight || 1,
+                          )
+                        : device.uHeight,
                 ports: [],
             });
             return;
