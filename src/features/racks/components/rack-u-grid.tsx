@@ -1,13 +1,11 @@
 import { useDroppable } from '@dnd-kit/core';
-import { CableOverlay } from '#/features/connectivity/components/cable-overlay';
 import { cn } from '#/lib/utils';
-import type { Connection, Device } from '#/types/schema';
+import type { Device } from '#/types/schema';
 import { RackDevice } from './rack-device.tsx';
 
 interface RackUGridProps {
     uCapacity: number;
     devices: Device[];
-    connections: Connection[];
     onMoveDevice?: (deviceId: string, newUPosition: number) => void;
     onEditDevice?: (device: Device) => void;
     projectedPlacement?: {
@@ -20,7 +18,6 @@ interface RackUGridProps {
 export function RackUGrid({
     uCapacity,
     devices,
-    connections,
     projectedPlacement,
     onEditDevice,
 }: RackUGridProps) {
@@ -105,11 +102,6 @@ export function RackUGrid({
                                 onEdit={onEditDevice}
                             />
                         ))}
-                        <CableOverlay
-                            devices={devices}
-                            connections={connections}
-                            uHeight={24} // Match the U slot height
-                        />
                     </div>
                 </div>
             </div>
