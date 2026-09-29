@@ -7,6 +7,7 @@ import { DeviceFaceplate } from '../../racks/components/device-faceplate';
 
 interface AssetTrayProps {
     inventory: Device[];
+    onAddMaster: () => void;
     onEditMaster: (asset: Device) => void;
     onDuplicateMaster: (id: string) => void;
     onDeleteMaster: (id: string) => void;
@@ -14,19 +15,31 @@ interface AssetTrayProps {
 
 export function AssetTray({
     inventory,
+    onAddMaster,
     onEditMaster,
     onDuplicateMaster,
     onDeleteMaster,
 }: AssetTrayProps) {
     return (
-        <div className="island-shell rounded-2xl p-6 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 shadow-sm min-h-[400px] flex flex-col">
+        <div className="ops-panel rounded-xl p-4 min-h-[360px] flex flex-col">
             <div className="flex items-center justify-between mb-4 px-1">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">
                     Asset Library
                 </h3>
-                <span className="text-[10px] font-black text-(--sea-ink-soft) dark:text-(--lagoon) bg-zinc-100 dark:bg-zinc-800/80 px-2.5 py-1 rounded-full border border-zinc-200 dark:border-zinc-700 transition-all shadow-sm">
-                    {inventory.length} Blueprints
-                </span>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-(--sea-ink-soft) dark:text-(--lagoon) bg-zinc-100 dark:bg-zinc-800/80 px-2.5 py-1 rounded-full border border-zinc-200 dark:border-zinc-700 transition-all shadow-sm">
+                        {inventory.length} Assets
+                    </span>
+                    <button
+                        type="button"
+                        onClick={onAddMaster}
+                        className="w-7 h-7 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-(--sea-teal) hover:border-(--sea-teal)/40 transition-colors"
+                        title="New Library Asset"
+                        aria-label="Create new library asset"
+                    >
+                        <PlusCircle size={14} />
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto pr-1 -mr-1 custom-scrollbar">
@@ -52,7 +65,7 @@ export function AssetTray({
                                 Library Empty
                             </p>
                             <p className="text-[10px] text-zinc-400 max-w-[140px] mt-1">
-                                Design your first master asset to populate your
+                                Add your first asset to populate your
                                 library.
                             </p>
                         </div>
@@ -61,7 +74,7 @@ export function AssetTray({
             </div>
 
             <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-6 px-1 italic border-t border-zinc-100 dark:border-zinc-800 pt-4">
-                Drag Blueprints into the rack to provision new infrastructure.
+                Drag library assets into the rack to place them.
             </p>
         </div>
     );
@@ -99,7 +112,7 @@ function DraggableAsset({
             ref={setNodeRef}
             style={style}
             className={cn(
-                'group relative flex items-center gap-3 p-2.5 rounded-xl border transition-all select-none',
+                'group relative flex items-center gap-3 p-2.5 rounded-lg border transition-all select-none',
                 isDragging
                     ? 'opacity-20 grayscale border-dashed border-zinc-300 dark:border-zinc-700 pointer-events-none'
                     : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 hover:border-(--lagoon) dark:hover:border-(--lagoon) hover:shadow-md cursor-grab active:cursor-grabbing',
@@ -129,7 +142,7 @@ function DraggableAsset({
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[9px] text-zinc-400 font-mono tracking-tighter shrink-0">
-                        {asset.uHeight}U • {asset.type.toUpperCase()}
+                        {asset.uHeight}U • {(asset.category || (asset.type === 'network' ? 'switch' : asset.type)).toUpperCase()}
                     </span>
                 </div>
             </div>

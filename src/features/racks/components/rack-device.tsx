@@ -33,14 +33,6 @@ export function RackDevice({ device, rackCapacity, onEdit }: RackDeviceProps) {
         zIndex: isDragging ? 50 : 10,
     };
 
-    const typeColors: Record<string, string> = {
-        server: 'text-emerald-500 font-extrabold',
-        network: 'text-sky-500 font-extrabold',
-        pdu: 'text-amber-500 font-extrabold',
-        storage: 'text-indigo-500 font-extrabold',
-        cable: 'text-slate-400 font-extrabold',
-        panel: 'text-zinc-500 font-extrabold',
-    };
 
     return (
         <button
@@ -61,25 +53,15 @@ export function RackDevice({ device, rackCapacity, onEdit }: RackDeviceProps) {
             {/* The High-Fidelity faceplate */}
             <DeviceFaceplate device={device} isDragging={isDragging} />
 
-            {/* Label Overlay (shows on hover or if space exists) */}
+            {/* Centered asset label with translucent backing so the faceplate stays readable */}
             <div
                 className={cn(
-                    'absolute inset-0 pointer-events-none flex items-center justify-between px-10 transition-opacity',
-                    isDragging
-                        ? 'opacity-0'
-                        : 'group-hover:opacity-100 opacity-90',
+                    'absolute inset-0 pointer-events-none flex items-center justify-center px-9 transition-opacity',
+                    isDragging ? 'opacity-0' : 'opacity-100',
                 )}
             >
-                <span
-                    className={cn(
-                        'text-[10px] font-black uppercase tracking-tighter truncate max-w-35 drop-shadow-sm',
-                        typeColors[device.type] || 'text-(--sea-ink)',
-                    )}
-                >
+                <span className="max-w-[72%] truncate rounded-md bg-black/50 px-2.5 py-1 text-center text-[10px] font-black uppercase tracking-tight text-white shadow-sm backdrop-blur-[1px]">
                     {device.name}
-                </span>
-                <span className="text-[9px] font-mono opacity-60 text-(--sea-ink-soft) truncate max-w-[60px] bg-white/40 px-1 rounded">
-                    {device.assetTag}
                 </span>
             </div>
 

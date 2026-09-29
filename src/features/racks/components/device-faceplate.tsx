@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Device } from '#/types/schema';
+import { getServerCatalogItem, type ServerFrontProfile } from '../../editor/server-catalog';
 
 interface DeviceFaceplateProps {
     device: Device;
@@ -10,17 +11,27 @@ export function DeviceFaceplate({ device, isDragging }: DeviceFaceplateProps) {
     const uHeight = device.uHeight;
     const pxHeight = uHeight * 24 - 2; // Subtract gap
 
+    const serverCatalogItem = getServerCatalogItem(device.equipmentType);
+
     // Render configuration based on type
     const faceplate = useMemo(() => {
         switch (device.type) {
             case 'network':
                 return <NetworkFaceplate uHeight={uHeight} />;
             case 'server':
-                return <ServerFaceplate uHeight={uHeight} />;
+                return (
+                    <ServerFaceplate
+                        uHeight={uHeight}
+                        profile={serverCatalogItem?.profile ?? 'generic'}
+                        bayCount={serverCatalogItem?.bayCount ?? 3}
+                    />
+                );
             case 'pdu':
                 return <PDUFaceplate uHeight={uHeight} />;
             case 'cable':
                 return <CableFaceplate uHeight={uHeight} />;
+            case 'airflow':
+                return <AirflowFaceplate uHeight={uHeight} />;
             case 'panel':
                 return device.ports.length > 0 ? (
                     <PatchPanelFaceplate
@@ -33,7 +44,13 @@ export function DeviceFaceplate({ device, isDragging }: DeviceFaceplateProps) {
             default:
                 return <GenericFaceplate uHeight={uHeight} />;
         }
-    }, [device.type, uHeight, device.ports.length]);
+    }, [
+        device.type,
+        uHeight,
+        device.ports.length,
+        serverCatalogItem?.profile,
+        serverCatalogItem?.bayCount,
+    ]);
 
     return (
         <svg
@@ -132,57 +149,323 @@ function NetworkFaceplate({ uHeight }: { uHeight: number }) {
     );
 }
 
-function ServerFaceplate({ uHeight }: { uHeight: number }) {
+function ServerFaceplate({
+    uHeight,
+    profile,
+    bayCount,
+}: {
+    uHeight: number;
+    profile: ServerFrontProfile;
+    bayCount: number;
+}) {
     const pxHeight = uHeight * 24 - 2;
+    const innerHeight = Math.max(8, pxHeight - 8);
+
+    if (profile === 'supermicro' || profile === 'supermicro-gpu') {
+        const isGpu = profile === 'supermicro-gpu';
+        const rows = isGpu ? 2 : 2;
+        const columns = isGpu ? 4 : 6;
+        const bayGap = 2;
+        const bayStartX = isGpu ? 118 : 74;
+        const bayEndX = 304;
+        const bayWidth =
+            (bayEndX - bayStartX - bayGap * (columns - 1)) / columns;
+        const bayHeight = Math.max(
+            8,
+            (innerHeight - bayGap * (rows - 1)) / rows,
+        );
+
+        return (
+            <g>
+                <rect
+                    x="14"
+                    y="4"
+                    width={isGpu ? 94 : 50}
+                    height={innerHeight}
+                    rx="2"
+                    fill="#151C20"
+                    stroke="#334155"
+                    strokeWidth="0.6"
+                />
+                <text
+                    x={isGpu ? 61 : 39}
+                    y={Math.max(10, pxHeight / 2 + 2)}
+                    textAnchor="middle"
+                    fontSize={isGpu ? '6' : '5'}
+                    fontWeight="800"
+                    fill="#CBD5E1"
+                >
+                    SUPERMICRO
+                </text>
+
+                {isGpu && (
+                    <>
+                        {Array.from({ length: 3 }).map((_, index) => (
+                            <circle
+                                // biome-ignore lint/suspicious/noArrayIndexKey: decorative fan
+                                key={index}
+                                cx={28 + index * 26}
+                                cy={Math.max(14, pxHeight / 2 + 11)}
+                                r="8"
+                                fill="#0F172A"
+                                stroke="#475569"
+                                strokeWidth="1"
+                            />
+                        ))}
+                        <rect
+                            x="20"
+                            y="8"
+                            width="70"
+                            height="7"
+                            rx="2"
+                            fill="#1E293B"
+                        />
+                    </>
+                )}
+
+                {Array.from({ length: rows * columns }).map((_, index) => {
+                    const row = Math.floor(index / columns);
+                    const column = index % columns;
+                    const x = bayStartX + column * (bayWidth + bayGap);
+                    const y = 4 + row * (bayHeight + bayGap);
+
+                    return (
+                        <g key={`supermicro-bay-${index}`}>
+                            <rect
+                                x={x}
+                                y={y}
+                                width={bayWidth}
+                                height={bayHeight}
+                                rx="1"
+                                fill="#232E34"
+                                stroke="#64748B"
+                                strokeWidth="0.5"
+                            />
+                            <rect
+                                x={x + 2}
+                                y={y + 2}
+                                width={Math.max(3, bayWidth - 4)}
+                                height="2"
+                                rx="0.5"
+                                fill="#0F172A"
+                            />
+                            <circle
+                                cx={x + 3}
+                                cy={Math.max(y + 6, y + bayHeight - 3)}
+                                r="0.9"
+                                fill="#10B981"
+                            />
+                        </g>
+                    );
+                })}
+            </g>
+        );
+    }
+
+    if (profile === 'cricket') {
+        const rowHeight = Math.max(4, (innerHeight - 2) / 2);
+
+        return (
+            <g>
+                <rect
+                    x="14"
+                    y="4"
+                    width="34"
+                    height={innerHeight}
+                    rx="1.5"
+                    fill="#111827"
+                    stroke="#475569"
+                    strokeWidth="0.6"
+                />
+                <text
+                    x="31"
+                    y={Math.max(10, pxHeight / 2 + 2)}
+                    textAnchor="middle"
+                    fontSize="5"
+                    fontWeight="700"
+                    fill="#CBD5E1"
+                >
+                    CIARA
+                </text>
+
+                {[0, 1].map((row) => {
+                    const y = 4 + row * (rowHeight + 2);
+                    return (
+                        <g key={`cricket-row-${row}`}>
+                            <rect
+                                x="54"
+                                y={y}
+                                width="248"
+                                height={rowHeight}
+                                rx="1"
+                                fill="#273238"
+                                stroke="#64748B"
+                                strokeOpacity="0.45"
+                                strokeWidth="0.5"
+                            />
+                            {Array.from({ length: 30 }).map((_, index) => (
+                                <rect
+                                    // biome-ignore lint/suspicious/noArrayIndexKey: decorative grille
+                                    key={index}
+                                    x={58 + index * 8}
+                                    y={y + 1.5}
+                                    width="4.5"
+                                    height={Math.max(1.5, rowHeight - 3)}
+                                    rx="0.5"
+                                    fill="#0F172A"
+                                    opacity="0.9"
+                                />
+                            ))}
+                            <rect
+                                x="126"
+                                y={y + rowHeight / 2 - 1}
+                                width="106"
+                                height="2"
+                                rx="1"
+                                fill="#111827"
+                            />
+                            <rect
+                                x="295"
+                                y={y + 1}
+                                width="4"
+                                height={Math.max(2, rowHeight - 2)}
+                                rx="0.5"
+                                fill={row === 0 ? '#EF4444' : '#3B82F6'}
+                                opacity="0.85"
+                            />
+                        </g>
+                    );
+                })}
+            </g>
+        );
+    }
+
+    const safeBayCount = Math.max(1, Math.min(bayCount, 12));
+    const startX =
+        profile === 'caribou' || profile === 'capybara' ? 60 : 82;
+    const endX = 304;
+    const gap = safeBayCount > 8 ? 1.5 : 2.5;
+    const bayWidth = Math.max(
+        7,
+        (endX - startX - gap * (safeBayCount - 1)) / safeBayCount,
+    );
+    const bayHeight = Math.max(7, innerHeight - 2);
+
     return (
         <g>
-            {/* Airflow Grilles */}
-            <pattern
-                id="grillePattern"
-                x="0"
-                y="0"
-                width="4"
-                height="4"
-                patternUnits="userSpaceOnUse"
-            >
-                <circle cx="2" cy="2" r="1" fill="#27272A" />
-            </pattern>
             <rect
-                x="20"
-                y="6"
-                width="200"
-                height={pxHeight - 12}
+                x="14"
+                y="4"
+                width={profile === 'crow' ? 60 : 40}
+                height={innerHeight}
                 rx="2"
-                fill="url(#grillePattern)"
+                fill="#151C20"
+                stroke="#334155"
+                strokeWidth="0.6"
             />
 
-            {/* Drive Bays */}
-            {[230, 255, 280].map((x) => (
-                <g key={`drive-${x}`} transform={`translate(${x}, 6)`}>
+            {profile === 'crow' ? (
+                <>
+                    {Array.from({ length: 7 }).map((_, index) => (
+                        <circle
+                            // biome-ignore lint/suspicious/noArrayIndexKey: decorative vent
+                            key={index}
+                            cx={20 + (index % 4) * 9}
+                            cy={8 + Math.floor(index / 4) * 7}
+                            r="1.2"
+                            fill="#475569"
+                        />
+                    ))}
                     <rect
-                        width="20"
-                        height={pxHeight - 12}
+                        x="56"
+                        y={pxHeight / 2 - 3}
+                        width="12"
+                        height="6"
                         rx="1"
-                        fill="currentColor"
-                        className="text-zinc-700 dark:text-zinc-800"
+                        fill="#1D4ED8"
+                        opacity="0.75"
+                    />
+                </>
+            ) : (
+                <>
+                    <circle
+                        cx="24"
+                        cy={pxHeight / 2}
+                        r="2"
+                        fill="#10B981"
                     />
                     <rect
-                        x="2"
-                        y="2"
-                        width="16"
-                        height="2"
-                        rx="0.5"
-                        fill="#3F3F46"
+                        x="31"
+                        y={pxHeight / 2 - 2}
+                        width="12"
+                        height="4"
+                        rx="1"
+                        fill="#334155"
                     />
-                    <circle
-                        cx="4"
-                        cy={pxHeight - 16}
-                        r="1"
-                        fill="#10B981"
-                        className="animate-pulse"
-                    />
-                </g>
-            ))}
+                </>
+            )}
+
+            {profile === 'capybara' && (
+                <rect
+                    x="50"
+                    y="5"
+                    width="7"
+                    height={Math.max(6, innerHeight - 2)}
+                    rx="1"
+                    fill="#64748B"
+                    opacity="0.35"
+                />
+            )}
+
+            {Array.from({ length: safeBayCount }).map((_, index) => {
+                const x = startX + index * (bayWidth + gap);
+                return (
+                    <g key={`server-bay-${index}`}>
+                        <rect
+                            x={x}
+                            y="5"
+                            width={bayWidth}
+                            height={bayHeight}
+                            rx="1"
+                            fill={
+                                profile === 'bison'
+                                    ? '#242F35'
+                                    : profile === 'crow'
+                                      ? '#1E293B'
+                                      : '#202A2F'
+                            }
+                            stroke="#475569"
+                            strokeWidth="0.45"
+                        />
+                        <rect
+                            x={x + 1.5}
+                            y="6.5"
+                            width={Math.max(2, bayWidth - 3)}
+                            height="1.5"
+                            rx="0.5"
+                            fill="#0F172A"
+                        />
+                        <circle
+                            cx={x + 2.2}
+                            cy={Math.max(10, pxHeight - 6.5)}
+                            r="0.8"
+                            fill="#10B981"
+                        />
+                    </g>
+                );
+            })}
+
+            {profile === 'bison' && (
+                <rect
+                    x="54"
+                    y={pxHeight / 2 - 2.5}
+                    width="20"
+                    height="5"
+                    rx="1"
+                    fill="#0F766E"
+                    opacity="0.65"
+                />
+            )}
         </g>
     );
 }
@@ -211,6 +494,38 @@ function PDUFaceplate({ uHeight }: { uHeight: number }) {
                     rx="1.5"
                     fill={i < 4 ? '#EF4444' : i < 8 ? '#3B82F6' : '#10B981'}
                     opacity="0.6"
+                />
+            ))}
+        </g>
+    );
+}
+
+function AirflowFaceplate({ uHeight }: { uHeight: number }) {
+    const pxHeight = uHeight * 24 - 2;
+
+    return (
+        <g>
+            <rect
+                x="18"
+                y="5"
+                width="284"
+                height={Math.max(8, pxHeight - 10)}
+                rx="3"
+                fill="#172126"
+                stroke="#42C9BC"
+                strokeOpacity="0.35"
+            />
+            {Array.from({ length: 14 }).map((_, index) => (
+                <line
+                    // biome-ignore lint/suspicious/noArrayIndexKey: decorative grille
+                    key={index}
+                    x1={30 + index * 18}
+                    y1="8"
+                    x2={30 + index * 18}
+                    y2={Math.max(10, pxHeight - 8)}
+                    stroke="#64748B"
+                    strokeOpacity="0.45"
+                    strokeWidth="2"
                 />
             ))}
         </g>

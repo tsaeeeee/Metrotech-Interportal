@@ -23,10 +23,10 @@ export function Drawer({ isOpen, onClose, title, children }: DrawerProps) {
             />
 
             {/* Drawer Content */}
-            <div className="relative w-full max-w-md h-full bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-white/10 shadow-2xl transition-transform duration-300 transform translate-x-0">
+            <div className="relative w-full max-w-[520px] h-full bg-(--surface) border-l border-(--line) shadow-2xl transition-transform duration-300 transform translate-x-0">
                 <div className="flex flex-col h-full">
                     {/* Header */}
-                    <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-white/10">
+                    <div className="flex items-center justify-between p-6 border-b border-(--line)">
                         <h2 className="text-xl font-black text-(--sea-ink) tracking-tight">
                             {title}
                         </h2>
@@ -40,7 +40,7 @@ export function Drawer({ isOpen, onClose, title, children }: DrawerProps) {
                     </div>
 
                     {/* Body */}
-                    <div className="flex-1 overflow-y-auto p-6 text-(--sea-ink-soft)">
+                    <div className="flex-1 overflow-y-auto p-5 text-(--sea-ink-soft)">
                         {children}
                     </div>
                 </div>

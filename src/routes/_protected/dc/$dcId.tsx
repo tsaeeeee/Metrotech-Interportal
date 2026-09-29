@@ -21,6 +21,7 @@ import React, {
     useRef,
     useState,
 } from 'react';
+import { createId } from '#/lib/id';
 import { cn } from '#/lib/utils';
 import type { Connection, Device, Floor, Rack, Room } from '#/types/schema';
 import { BreadcrumbNav } from '../../../components/breadcrumb-nav';
@@ -142,6 +143,7 @@ function App() {
     // 2. Expansion State
     const [isAddingRoom, setIsAddingRoom] = useState(false);
     const [isAddingRack, setIsAddingRack] = useState(false);
+    const [rackTargetRoom, setRackTargetRoom] = useState<Room | null>(null);
 
     const currentData = useMemo(
         () => (viewMode === 'rack' ? rackData : roomData),
@@ -254,6 +256,13 @@ function App() {
     ]);
 
     const handleAddAsset = () => {
+        if (!rackData) return;
+        setSelectedDevice(undefined);
+        setDrawerMode('rack');
+        setDrawerOpen(true);
+    };
+
+    const handleAddMaster = () => {
         setSelectedDevice(undefined);
         setDrawerMode('inventory');
         setDrawerOpen(true);
@@ -330,12 +339,37 @@ function App() {
         [refreshData, loadRoom, loadHierarchy],
     );
 
+    const handleOpenAddRack = useCallback(
+        (roomId?: string) => {
+            const targetRoom =
+                (roomId
+                    ? hierarchy?.rooms.find((room) => room.id === roomId)
+                    : undefined) ||
+                roomData?.room ||
+                rackData?.room;
+
+            if (!targetRoom) {
+                console.error('Cannot add rack: no target room is selected');
+                return;
+            }
+
+            setRackTargetRoom(targetRoom);
+            setIsAddingRack(true);
+
+            if (roomData?.room.id !== targetRoom.id) {
+                void loadRoom(targetRoom.id, true);
+            }
+        },
+        [hierarchy, roomData, rackData, loadRoom],
+    );
+
     const handleRackCreated = useCallback(
         (newId?: string) => {
             setIsAddingRack(false);
+            setRackTargetRoom(null);
             if (newId) {
-                loadRack(newId);
-                loadHierarchy();
+                void loadRack(newId);
+                void loadHierarchy();
             } else {
                 refreshData();
             }
@@ -379,7 +413,14 @@ function App() {
     const handleUpdateRack = async (id: string, name: string) => {
         setIsRefreshing(true);
         try {
-            await updateRackFn({ data: { id, name, uCapacity: 42 } } as never); // Default capacity for now
+            const currentRack = hierarchy?.racks.find((rack) => rack.id === id);
+            await updateRackFn({
+                data: {
+                    id,
+                    name,
+                    uCapacity: currentRack?.uCapacity || rackData?.rack.uCapacity || 42,
+                },
+            } as never);
             await loadHierarchy();
             if (rackData?.rack.id === id) refreshData(true);
         } finally {
@@ -539,13 +580,19 @@ function App() {
                 // 1. Dropping an Inventory Blueprint onto the rack grid
                 if (active.data.current?.type === 'master') {
                     const blueprint = active.data.current.device;
-                    const newId = `new-${Date.now()}`;
+                    const newId = createId();
                     const newAsset: Device = {
                         ...blueprint,
                         id: newId,
                         uPosition: finalU,
                         rackId: rackData?.rack.id || '',
                         status: 'active',
+                        ports: (blueprint.ports || []).map((port: Device['ports'][number]) => ({
+                            ...port,
+                            id: createId(),
+                            deviceId: newId,
+                            status: 'up',
+                        })),
                     };
 
                     if (rackData) {
@@ -578,12 +625,12 @@ function App() {
                 }
             }}
         >
-            <main className="w-full px-4 md:px-8 pb-12 pt-8">
-                <div className="max-w-[1920px] w-full mx-auto">
+            <main className="w-full px-3 md:px-5 pb-8 pt-5">
+                <div className="max-w-[1880px] w-full mx-auto">
                     {/* Header Section */}
-                    <div className="flex flex-col gap-6 mb-10">
+                    <div className="ops-toolbar rounded-xl px-4 md:px-5 py-4 flex flex-col gap-4 mb-4">
                         {/* Top Level: Back link + Breadcrumbs */}
-                        <div className="flex items-center gap-3 border-b border-zinc-100 pb-4">
+                        <div className="flex items-center gap-3 border-b border-(--line) pb-3">
                             <Link
                                 to="/"
                                 className="flex items-center gap-1.5 text-xs font-bold text-(--sea-ink-soft) hover:text-(--lagoon-deep) transition-colors shrink-0"
@@ -603,7 +650,7 @@ function App() {
                         {/* Main Level: Context Title & Primary Actions */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div>
-                                <h1 className="text-3xl font-black text-zinc-800 dark:text-zinc-100 tracking-tighter">
+                                <h1 className="text-2xl font-extrabold text-(--sea-ink) tracking-tight">
                                     {!roomData && !rackData
                                         ? 'Datacenter Infrastructure'
                                         : viewMode === 'rack'
@@ -639,7 +686,9 @@ function App() {
                                 ) : viewMode === 'room' ? (
                                     <button
                                         type="button"
-                                        onClick={() => setIsAddingRack(true)}
+                                        onClick={() =>
+                                            handleOpenAddRack(roomData?.room.id)
+                                        }
                                         className={cn(
                                             'flex items-center gap-2 px-6 py-2.5 bg-(--sea-teal) text-white dark:text-zinc-900 rounded-xl text-sm font-black shadow-lg shadow-emerald-900/15 dark:shadow-teal-500/20 hover:brightness-110 transition-all active:scale-95 whitespace-nowrap border border-white/10 dark:border-white/5 cursor-pointer',
                                         )}
@@ -676,16 +725,19 @@ function App() {
                         />
                     )}
 
-                    {isAddingRack && roomData && (
+                    {isAddingRack && rackTargetRoom && (
                         <AddRackForm
-                            roomId={roomData.room.id}
-                            roomName={roomData.room.name}
-                            onCancel={() => setIsAddingRack(false)}
+                            roomId={rackTargetRoom.id}
+                            roomName={rackTargetRoom.name}
+                            onCancel={() => {
+                                setIsAddingRack(false);
+                                setRackTargetRoom(null);
+                            }}
                             onSuccess={handleRackCreated}
                         />
                     )}
 
-                    <div className="grid lg:grid-cols-[320px_1fr_400px] 2xl:grid-cols-[350px_1fr_450px] gap-8 items-start">
+                    <div className="grid xl:grid-cols-[280px_minmax(0,1fr)_340px] 2xl:grid-cols-[300px_minmax(0,1fr)_360px] gap-4 items-start">
                         {/* 1. Infrastructure Navigator Sidebar */}
                         <InfrastructureNavigator
                             hierarchy={hierarchy}
@@ -698,7 +750,7 @@ function App() {
                             onLoadRoom={loadRoom}
                             onLoadRack={loadRack}
                             onAddRoom={() => setIsAddingRoom(true)}
-                            onAddRack={() => setIsAddingRack(true)}
+                            onAddRack={handleOpenAddRack}
                             onUpdateDatacenter={handleUpdateDatacenter}
                             onDeleteDatacenter={handleDeleteDatacenter}
                             onUpdateRoom={handleUpdateRoom}
@@ -709,7 +761,7 @@ function App() {
                         />
 
                         {/* 2. Main Workspace Visualizer */}
-                        <section className="island-shell bg-white/60 dark:bg-zinc-900/60 backdrop-blur-xl border border-white/40 dark:border-zinc-800/40 rounded-[2.5rem] p-8 md:py-12 md:px-12 xl:px-16 shadow-2xl shadow-emerald-900/5 min-h-200 flex justify-center items-center overflow-auto border-dashed">
+                        <section className="ops-panel rounded-xl p-4 md:p-6 min-h-[720px] flex justify-center items-center overflow-auto">
                             {loading && !currentData ? (
                                 <div className="flex flex-col items-center gap-3 opacity-30">
                                     <Activity
@@ -724,7 +776,6 @@ function App() {
                                 <RackUGrid
                                     uCapacity={rackData.rack.uCapacity}
                                     devices={rackData.devices}
-                                    connections={rackData.connections}
                                     onMoveDevice={handleMoveDevice}
                                     onEditDevice={handleEditAsset}
                                     projectedPlacement={projectedPlacement}
@@ -749,9 +800,10 @@ function App() {
                         </section>
 
                         {/* Sidebar Area */}
-                        <aside className="space-y-6">
+                        <aside className="space-y-4">
                             <AssetTray
                                 inventory={inventory}
+                                onAddMaster={handleAddMaster}
                                 onEditMaster={handleEditMaster}
                                 onDuplicateMaster={handleDuplicateMaster}
                                 onDeleteMaster={handleDeleteMaster}
@@ -776,7 +828,7 @@ function App() {
                                 }
                             />
 
-                            <div className="island-shell rounded-2xl p-6 bg-(--surface-strong) text-(--sea-ink) shadow-2xl border border-(--line)">
+                            <div className="ops-panel rounded-xl p-4 text-(--sea-ink)">
                                 <div className="flex items-center gap-2 mb-4 opacity-80">
                                     <Info
                                         size={16}
@@ -801,23 +853,20 @@ function App() {
                                             }
                                             className="w-full flex items-center justify-between p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer group text-left"
                                         >
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-semibold">
+                                            <div className="min-w-0 flex flex-col">
+                                                <span className="text-sm font-semibold truncate">
                                                     {device.name}
                                                 </span>
-                                                <span className="text-[10px] opacity-50 uppercase">
-                                                    {device.type} •{' '}
-                                                    {device.status}
+                                                <span className="text-[10px] text-(--sea-ink-soft) truncate">
+                                                    {device.category === 'other'
+                                                        ? `${device.uHeight}U component`
+                                                        : [device.brand, device.equipmentType]
+                                                              .filter(Boolean)
+                                                              .join(' · ')}
                                                 </span>
                                             </div>
-                                            <div
-                                                className={`text-[10px] font-mono px-2 py-1 rounded border ${
-                                                    device.status === 'active'
-                                                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                                                        : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                                                }`}
-                                            >
-                                                {device.assetTag || 'NO-TAG'}
+                                            <div className="shrink-0 text-[10px] font-mono px-2 py-1 rounded border border-(--line) bg-(--surface-muted) text-(--sea-ink-soft)">
+                                                {device.uHeight}U
                                             </div>
                                         </button>
                                     ))}
@@ -833,28 +882,19 @@ function App() {
                     title={
                         selectedDevice
                             ? drawerMode === 'inventory'
-                                ? 'Edit Master Blueprint'
-                                : 'Edit Infrastructure Asset'
+                                ? 'Edit Library Asset'
+                                : 'Edit Rack Asset'
                             : drawerMode === 'inventory'
-                              ? 'Design New Blueprint'
-                              : 'Register New Asset'
+                              ? 'Add Library Asset'
+                              : 'Add Rack Asset'
                     }
                 >
                     <AssetForm
                         mode={drawerMode}
                         device={selectedDevice}
-                        allDevices={
-                            roomData?.allDevices || rackData?.devices || []
-                        }
-                        connections={
-                            viewMode === 'rack'
-                                ? rackData?.connections || []
-                                : roomData?.connections || []
-                        }
                         rackId={rackData?.rack.id || 'rk-01'}
                         onSave={handleAssetSaved}
                         onDelete={handleAssetSaved}
-                        onUpdateConnections={refreshData}
                     />
                 </Drawer>
 
@@ -883,7 +923,7 @@ function StatsCard({
     icon: React.ReactNode;
 }) {
     return (
-        <div className="island-shell rounded-2xl p-6 bg-white/40 dark:bg-zinc-900/40 shadow-2xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+        <div className="ops-panel rounded-xl p-4 flex items-center justify-between">
             <div>
                 <p className="text-[10px] font-extrabold text-(--sea-ink-soft) uppercase tracking-widest mb-1">
                     {title}
@@ -892,7 +932,7 @@ function StatsCard({
                     {value}
                 </div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-zinc-100/50 dark:bg-zinc-800/50 flex items-center justify-center border border-zinc-200 dark:border-zinc-700">
+            <div className="w-9 h-9 rounded-lg bg-(--surface-muted) flex items-center justify-center border border-(--line)">
                 {icon}
             </div>
         </div>
@@ -911,16 +951,18 @@ const AddRoomForm = React.memo(
     }) => {
         const [newRoomName, setNewRoomName] = useState('');
         const [loading, setLoading] = useState(false);
+        const [error, setError] = useState('');
         const createRoomFn = useServerFn(createRoom);
 
         const handleCreateRoom = async (e: React.FormEvent) => {
             e.preventDefault();
             if (!newRoomName.trim()) return;
+            setError('');
             setLoading(true);
             try {
                 const result = await createRoomFn({
                     data: {
-                        name: newRoomName,
+                        name: newRoomName.trim(),
                         floorId: dcCode,
                         width: 12,
                         height: 10,
@@ -928,13 +970,19 @@ const AddRoomForm = React.memo(
                 } as never);
                 setNewRoomName('');
                 onSuccess(result.room.id);
+            } catch (err) {
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : 'Failed to create room',
+                );
             } finally {
                 setLoading(false);
             }
         };
 
         return (
-            <div className="mb-8 p-6 bg-white dark:bg-zinc-900 rounded-2xl border-2 border-(--lagoon-deep)/20 shadow-xl animate-in zoom-in-95 duration-200">
+            <div className="mb-4 ops-panel rounded-xl p-5 border-(--lagoon-deep)/30 animate-in zoom-in-95 duration-200">
                 <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-4 flex items-center gap-2">
                     <Plus className="text-(--lagoon-deep)" />
                     Create New Room
@@ -967,6 +1015,11 @@ const AddRoomForm = React.memo(
                             Cancel
                         </button>
                     </div>
+                    {error && (
+                        <div className="w-full md:basis-full px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-sm font-medium">
+                            {error}
+                        </div>
+                    )}
                 </form>
             </div>
         );
@@ -988,31 +1041,39 @@ const AddRackForm = React.memo(
         const [newRackName, setNewRackName] = useState('');
         const [newRackCapacity, setNewRackCapacity] = useState<number>(42);
         const [loading, setLoading] = useState(false);
+        const [error, setError] = useState('');
         const createRackFn = useServerFn(createRack);
 
         const handleCreateRack = async (e: React.FormEvent) => {
             e.preventDefault();
             if (!newRackName.trim()) return;
+            setError('');
             setLoading(true);
             try {
                 const result = await createRackFn({
                     data: {
-                        name: newRackName,
-                        roomId: roomId,
+                        name: newRackName.trim(),
+                        roomId,
                         uCapacity: newRackCapacity,
-                        x: Math.floor(Math.random() * 8),
-                        y: Math.floor(Math.random() * 8),
+                        x: 0,
+                        y: 0,
                     },
                 } as never);
                 setNewRackName('');
                 onSuccess(result.rack.id);
+            } catch (err) {
+                setError(
+                    err instanceof Error
+                        ? err.message
+                        : 'Failed to create rack',
+                );
             } finally {
                 setLoading(false);
             }
         };
 
         return (
-            <div className="mb-8 p-6 bg-white dark:bg-zinc-900 rounded-2xl border-2 border-(--lagoon-deep)/20 shadow-xl animate-in zoom-in-95 duration-200">
+            <div className="mb-4 ops-panel rounded-xl p-5 border-(--lagoon-deep)/30 animate-in zoom-in-95 duration-200">
                 <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-4 flex items-center gap-2">
                     <Plus className="text-(--lagoon-deep)" />
                     Add New Rack to {roomName}
@@ -1074,6 +1135,11 @@ const AddRackForm = React.memo(
                             Cancel
                         </button>
                     </div>
+                    {error && (
+                        <div className="w-full md:basis-full px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-sm font-medium">
+                            {error}
+                        </div>
+                    )}
                 </form>
             </div>
         );

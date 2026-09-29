@@ -6,6 +6,10 @@ const SESSION_COOKIE_NAME = 'session_token';
 const SESSION_EXPIRY_DAYS = 7;
 const SESSION_EXPIRY_MS = SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 
+function isSecureCookieEnabled(): boolean {
+    return process.env.SESSION_COOKIE_SECURE === 'true';
+}
+
 async function hashPassword(password: string): Promise<string> {
     const crypto = await import('node:crypto');
     // Basic pbkdf2 implementation with a static salt for simplicity
@@ -52,7 +56,7 @@ export const signUp = createServerFn({ method: 'POST' })
         // Set cookie
         setCookie(SESSION_COOKIE_NAME, token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
+            secure: isSecureCookieEnabled(),
             sameSite: 'lax',
             path: '/',
             maxAge: SESSION_EXPIRY_DAYS * 24 * 60 * 60,
@@ -89,7 +93,7 @@ export const login = createServerFn({ method: 'POST' })
 
         setCookie(SESSION_COOKIE_NAME, token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
+            secure: isSecureCookieEnabled(),
             sameSite: 'lax',
             path: '/',
             maxAge: SESSION_EXPIRY_DAYS * 24 * 60 * 60,
@@ -108,7 +112,7 @@ export const logout = createServerFn({ method: 'POST' }).handler(async () => {
     // Clear cookie
     setCookie(SESSION_COOKIE_NAME, '', {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: isSecureCookieEnabled(),
         sameSite: 'lax',
         path: '/',
         maxAge: 0,
