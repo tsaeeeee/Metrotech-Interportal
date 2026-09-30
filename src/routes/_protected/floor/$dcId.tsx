@@ -1,11 +1,11 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
 import {
-    ArrowLeft, Cable, ChevronDown, Eraser, Grid3X3, Layers3,
+    ArrowLeft, Cable, Eraser, Grid3X3, Layers3,
     MapPinned, Pencil, Plus, Route as RouteIcon, Save, Server,
     ZoomIn, ZoomOut,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { cn } from '#/lib/utils';
 import { FloorCanvas, type FloorTool } from '#/features/floor-planner/components/floor-canvas';
 import {
@@ -15,7 +15,7 @@ import {
 import { calculateFiberRoute, type PlannedRoute } from '#/features/floor-planner/routing';
 import type {
     PlannerCell, PlannerFloor, PlannerLayer, PlannerLayout,
-    PlannerOverview, PlannerRack,
+    PlannerOverview,
 } from '#/features/floor-planner/types';
 
 export const Route = createFileRoute('/_protected/floor/$dcId')({
@@ -89,7 +89,7 @@ function PlannerPage() {
         return result;
     };
 
-    const addFloor = async (event: React.FormEvent) => {
+    const addFloor = async (event: FormEvent) => {
         event.preventDefault();
         setBusy(true);
         setPageError('');
@@ -373,7 +373,7 @@ function FloorWorkspace({
         }
     };
 
-    const createRoom = async (event: React.FormEvent) => {
+    const createRoom = async (event: FormEvent) => {
         event.preventDefault();
         setBusy(true);
         setActionError('');
@@ -390,7 +390,7 @@ function FloorWorkspace({
         }
     };
 
-    const createRack = async (event: React.FormEvent) => {
+    const createRack = async (event: FormEvent) => {
         event.preventDefault();
         if (!creatingRackAt) return;
         setBusy(true);
