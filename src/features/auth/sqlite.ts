@@ -79,6 +79,35 @@ function ensureSchema(db: Database.Database) {
             payload TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS dc_planner_floors (
+            id TEXT PRIMARY KEY,
+            datacenter_id TEXT NOT NULL REFERENCES datacenters(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            grid_width INTEGER NOT NULL DEFAULT 48,
+            grid_height INTEGER NOT NULL DEFAULT 22,
+            tile_cm INTEGER NOT NULL DEFAULT 60,
+            layout_json TEXT NOT NULL,
+            version INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS dc_planner_room_floors (
+            room_id TEXT PRIMARY KEY REFERENCES rooms(id) ON DELETE CASCADE,
+            floor_id TEXT NOT NULL REFERENCES dc_planner_floors(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS dc_planner_racks (
+            rack_id TEXT PRIMARY KEY REFERENCES racks(id) ON DELETE CASCADE,
+            floor_id TEXT NOT NULL REFERENCES dc_planner_floors(id) ON DELETE CASCADE,
+            x INTEGER NOT NULL,
+            y INTEGER NOT NULL,
+            UNIQUE(floor_id, x, y)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_planner_floors_dc ON dc_planner_floors(datacenter_id);
+        CREATE INDEX IF NOT EXISTS idx_planner_room_floor ON dc_planner_room_floors(floor_id);
+        CREATE INDEX IF NOT EXISTS idx_planner_racks_floor ON dc_planner_racks(floor_id);
+
         CREATE TABLE IF NOT EXISTS app_meta (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
