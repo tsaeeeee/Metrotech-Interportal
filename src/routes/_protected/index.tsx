@@ -4,6 +4,7 @@ import {
     ArrowRight,
     Building2,
     MapPin,
+    MapPinned,
     Pencil,
     Plus,
     Server,
@@ -335,7 +336,7 @@ function DashboardPage() {
                                 dc={dc}
                                 onClick={() =>
                                     router.navigate({
-                                        to: '/dc/$dcId',
+                                        to: '/floor/$dcId',
                                         params: { dcId: dc.id },
                                     })
                                 }
@@ -373,7 +374,7 @@ function DatacenterCard({
             >
                 <div className="flex items-start justify-between mb-4">
                     <div className="w-10 h-10 rounded-lg bg-(--lagoon-deep)/10 border border-(--lagoon-deep)/20 flex items-center justify-center">
-                        <Server size={18} className="text-(--lagoon-deep)" />
+                        <MapPinned size={18} className="text-(--lagoon-deep)" />
                     </div>
                     <ArrowRight
                         size={16}
@@ -406,7 +407,16 @@ function DatacenterCard({
                 </div>
             </button>
 
-            {/* Quick Actions Overlay */}
+            <Link
+                to="/dc/$dcId"
+                params={{ dcId: dc.id }}
+                className="mx-5 mb-3 inline-flex items-center gap-1.5 text-[11px] font-bold text-(--sea-ink-soft) hover:text-(--sea-teal)"
+            >
+                <Server size={12} />
+                Open classic rack view
+            </Link>
+
+                        {/* Quick Actions Overlay */}
             <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                     type="button"
