@@ -56,6 +56,9 @@ import { isRangeOccupied } from '../../../features/racks/utils/collision';
 import { createSnapToUModifier } from '../../../features/racks/utils/modifiers';
 
 export const Route = createFileRoute('/_protected/dc/$dcId')({
+    validateSearch: (search: Record<string, unknown>) => ({
+        rack: typeof search.rack === 'string' ? search.rack : undefined,
+    }),
     loader: async ({ params }) => {
         const dc = await getDatacenterById({ data: params.dcId } as never);
         if (!dc) throw redirect({ to: '/' });
@@ -68,6 +71,7 @@ type ViewMode = 'room' | 'rack';
 
 function App() {
     const { dc } = Route.useLoaderData();
+    const { rack: requestedRackId } = Route.useSearch();
     // 1. DND Global State
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -229,8 +233,15 @@ function App() {
                       )
                     : null;
 
-                if (firstRack) {
-                    await loadRack(firstRack.id, true);
+                const requestedRack = requestedRackId
+                    ? hierarchyResult.racks.find(
+                          (candidate) =>
+                              candidate.id === requestedRackId &&
+                              dcRooms.some((room) => room.id === candidate.roomId),
+                      )
+                    : undefined;
+                if (requestedRack || firstRack) {
+                    await loadRack((requestedRack || firstRack)!.id, true);
                 } else if (firstRoom) {
                     await loadRoom(firstRoom.id, true);
                 } else {
@@ -251,6 +262,7 @@ function App() {
         loadInventory,
         fetchHierarchyFn,
         dc.code,
+        requestedRackId,
         rackData,
         roomData,
     ]);
