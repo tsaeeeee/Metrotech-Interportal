@@ -76,6 +76,7 @@ async function ownedFloor(floorId: string) {
 }
 
 function validCell(cell: PlannerCell, floor: DbFloor): boolean {
+    if (!cell || typeof cell !== 'object') return false;
     return (
         Number.isInteger(cell.x) &&
         Number.isInteger(cell.y) &&
@@ -176,7 +177,7 @@ export const getPlannerOverview = createServerFn({ method: 'GET' })
                 id: rack.id,
                 name: rack.name,
                 roomId: rack.room_id,
-                floorId: racks.length && rack.floor_id ? rack.floor_id : null,
+                floorId: rack.floor_id ?? null,
                 uCapacity: rack.u_capacity,
                 deviceCount: rack.device_count,
                 x: rack.x,
