@@ -54,6 +54,9 @@ function findApproaches(
 
         if (runnerCells.has(current)) {
             approaches.set(current, { steps, path: path.map(unkey) });
+            // An access lead terminates at its first runner tile.
+            // Never use free floor space to bridge disconnected runner segments.
+            continue;
         }
         if (steps >= maxLead) continue;
 
@@ -86,7 +89,7 @@ export function calculateFiberRoute(input: {
 }): PlannedRoute | null {
     const {
         layout, racks, sourceId, destinationId,
-        width, height, tileCm, slackMeters, maxLeadTiles = 8,
+        width, height, tileCm, slackMeters, maxLeadTiles = 3,
     } = input;
 
     if (sourceId === destinationId || width < 1 || height < 1 || tileCm <= 0) {
