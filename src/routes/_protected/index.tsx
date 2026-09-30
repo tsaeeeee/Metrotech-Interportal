@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from '@tanstack/react-router';
+import { createFileRoute, Link, useRouter } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
 import {
     ArrowRight,
@@ -410,6 +410,7 @@ function DatacenterCard({
             <Link
                 to="/dc/$dcId"
                 params={{ dcId: dc.id }}
+                search={{ rack: undefined }}
                 className="mx-5 mb-3 inline-flex items-center gap-1.5 text-[11px] font-bold text-(--sea-ink-soft) hover:text-(--sea-teal)"
             >
                 <Server size={12} />
