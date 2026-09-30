@@ -162,6 +162,7 @@ function PlannerPage() {
                     <Link
                         to="/dc/$dcId"
                         params={{ dcId: overview.datacenter.id }}
+                        search={{ rack: undefined }}
                         className="inline-flex items-center gap-2 rounded-lg border border-(--line) bg-(--surface) px-3 py-2 text-xs font-bold text-(--sea-ink)"
                     >
                         <Server size={15} /> Classic Rack View
