@@ -14,7 +14,7 @@ services:
       SESSION_COOKIE_SECURE: "false"
       SESSION_COOKIE_NAME: dcim_floor_preview_session
     ports:
-      - "3001:3000"
+      # Loopback-only: reach from laptop with ssh -L 3001:127.0.0.1:3001\n      - "127.0.0.1:3001:3000"
     volumes:
       - ./data:/app/data
     healthcheck:
