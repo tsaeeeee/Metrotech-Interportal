@@ -125,7 +125,7 @@ docker compose -f compose.floor-preview.yml -p metrotech-dcim-floor-preview up -
 docker compose -f compose.floor-preview.yml -p metrotech-dcim-floor-preview ps
 ```
 
-Preview URL: `http://<VM-IP>:3001`. This uses its own container, SQLite file,
+For access from a laptop, first run `ssh -N -L 3001:127.0.0.1:3001 USER@VM-IP` in another terminal. Then open `http://localhost:3001` in the browser. Port 3001 only listens on the VM loopback. This uses its own container, SQLite file,
 Docker Compose project name and session cookie. The preview's `./data/db.sqlite`
 is **independent of** the production database. For realistic rack testing,
 initialize it from a consistent SQLite backup of the live DCIM first.
