@@ -51,20 +51,17 @@ function LoginPage() {
     return (
         <main className="min-h-[calc(100vh-8rem)] flex items-center justify-center px-4 py-12">
             <div className="w-full max-w-md rise-in">
-                {/* Logo mark */}
-                <div className="flex flex-col items-center mb-8">
-                    <div className="w-12 h-12 rounded-2xl bg-(--lagoon-deep) shadow-lg shadow-emerald-900/20 flex items-center justify-center mb-4">
-                        <span className="w-3 h-3 rounded-full bg-white/80 shadow-[0_0_12px_rgba(255,255,255,0.8)]" />
-                    </div>
+                <div className="flex flex-col items-center mb-7">
+                    <img src="/assets/metrotech-logo.webp" width={300} height={43} alt="Metrotech" className="auth-logo" />
                     <h1 className="text-2xl font-black text-(--sea-ink) tracking-tight">
                         Welcome back
                     </h1>
                     <p className="text-sm text-(--sea-ink-soft) mt-1">
-                        Sign in to Metrotech Interportal
+                        Sign in to Metrotech DCIM
                     </p>
                 </div>
 
-                <div className="island-shell rounded-2xl p-8">
+                <div className="island-shell auth-panel rounded-2xl p-8">
                     <form
                         onSubmit={handleSubmit}
                         className="flex flex-col gap-5"
@@ -80,7 +77,7 @@ function LoginPage() {
                                 required
                                 autoComplete="email"
                                 placeholder="you@company.com"
-                                className="w-full px-4 py-2.5 rounded-xl bg-white/60 dark:bg-zinc-900/60 border border-(--line) focus:outline-none focus:ring-2 focus:ring-(--lagoon-deep)/40 transition-all text-(--sea-ink) placeholder:text-(--sea-ink-soft)/40 text-sm"
+                                className="asset-control"
                             />
                         </div>
 
@@ -95,7 +92,7 @@ function LoginPage() {
                                 required
                                 autoComplete="current-password"
                                 placeholder="••••••••"
-                                className="w-full px-4 py-2.5 rounded-xl bg-white/60 dark:bg-zinc-900/60 border border-(--line) focus:outline-none focus:ring-2 focus:ring-(--lagoon-deep)/40 transition-all text-(--sea-ink) placeholder:text-(--sea-ink-soft)/40 text-sm"
+                                className="asset-control"
                             />
                         </div>
 
@@ -109,7 +106,7 @@ function LoginPage() {
                             id="login-submit"
                             type="submit"
                             disabled={loading}
-                            className="w-full py-2.5 rounded-xl bg-(--lagoon-deep) text-white font-black text-sm shadow-lg shadow-emerald-900/15 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="auth-submit"
                         >
                             {loading ? 'Signing in…' : 'Sign In'}
                         </button>

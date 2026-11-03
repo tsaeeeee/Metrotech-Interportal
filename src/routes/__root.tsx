@@ -9,7 +9,7 @@ import { getSession } from '../features/auth/auth-service';
 
 import appCss from '../styles.css?url';
 
-const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark'||stored==='auto')?stored:'light';var resolved=mode==='auto'? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);if(mode==='auto'){root.removeAttribute('data-theme')}else{root.setAttribute('data-theme',mode)}root.style.colorScheme=resolved;}catch(e){}})();`;
+const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark')?stored:'dark';var resolved=mode==='auto'? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);if(mode==='auto'){root.removeAttribute('data-theme')}else{root.setAttribute('data-theme',mode)}root.style.colorScheme=resolved;}catch(e){}})();`;
 
 interface RouterContext {
     session: { user: { id: string; fullName: string; email: string } } | null;
@@ -30,13 +30,22 @@ export const Route = createRootRouteWithContext<RouterContext>()({
                 content: 'width=device-width, initial-scale=1',
             },
             {
-                title: 'Metrotech Interportal',
+                title: 'Metrotech DCIM | Metrotech Indonesia',
             },
         ],
         links: [
             {
                 rel: 'stylesheet',
                 href: appCss,
+            },
+            {
+                rel: 'icon',
+                type: 'image/svg+xml',
+                href: '/assets/metrotech-favicon.svg',
+            },
+            {
+                rel: 'manifest',
+                href: '/manifest.json',
             },
         ],
     }),
@@ -55,8 +64,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             </head>
             <body className="font-sans antialiased wrap-anywhere selection:bg-[rgba(79,184,178,0.24)]">
                 <Header />
-                {children}
-                <Footer />
+                <div className="metrotech-main">
+                    {children}
+                    <Footer />
+                </div>
                 <Scripts />
             </body>
         </html>
