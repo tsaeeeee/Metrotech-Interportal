@@ -111,3 +111,31 @@ pnpm build
 - Do not commit local SQLite / JSON data.
 - Avoid using `latest` for core framework dependencies; framework versions are pinned intentionally for reproducible installs.
 - Use the Node version declared by the repository before reinstalling `node_modules`, especially because `better-sqlite3` contains a native Node binding.
+
+
+## Floor Planner V1 preview
+
+A standalone, isolated preview Compose file is available on the
+`feature/floor-planner-v1` branch. Keep the production DCIM directory
+untouched and clone the preview branch to a **different directory**.
+
+```bash
+# Inside a separate clone at /opt/metrotech-dcim-floor-preview
+docker compose -f compose.floor-preview.yml -p metrotech-dcim-floor-preview up -d --build
+docker compose -f compose.floor-preview.yml -p metrotech-dcim-floor-preview ps
+```
+
+For access from a laptop, first run `ssh -N -L 3001:127.0.0.1:3001 USER@VM-IP` in another terminal. Then open `http://localhost:3001` in the browser. Port 3001 only listens on the VM loopback. This uses its own container, SQLite file,
+Docker Compose project name and session cookie. The preview's `./data/db.sqlite`
+is **independent of** the production database. For realistic rack testing,
+initialize it from a consistent SQLite backup of the live DCIM first.
+
+From the datacenter list, click a datacenter to open its floor planner.
+A default `Floor 1` is created automatically for existing datacenters;
+existing rooms are assigned to that default floor without changing their
+current rack coordinates. Existing racks appear as **unplaced** on the floor
+map, ready to be positioned. Clicking a rack's "Open Rack Assets" button
+opens its original 42U/48U/52U rack view.
+
+Do not run `docker compose down -v` in either environment. The new database
+tables are additive, but back up live SQLite before testing migrations.

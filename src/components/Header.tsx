@@ -1,6 +1,7 @@
 import { Link, useRouteContext, useRouter } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
-import { LogOut, ShieldCheck } from 'lucide-react';
+import { Info, LayoutDashboard, LogIn, LogOut, Menu, X } from 'lucide-react';
+import { useState } from 'react';
 import { logout } from '../features/auth/auth-service';
 import ThemeToggle from './ThemeToggle';
 
@@ -8,87 +9,105 @@ export default function Header() {
     const { session } = useRouteContext({ from: '__root__' });
     const router = useRouter();
     const logoutFn = useServerFn(logout);
+    const [mobileOpen, setMobileOpen] = useState(false);
 
     const handleLogout = async () => {
+        setMobileOpen(false);
         await logoutFn();
         await router.invalidate();
+        await router.navigate({ to: '/login' });
     };
 
     return (
-        <header className="sticky top-0 z-50 border-b border-(--line) bg-(--header-bg) backdrop-blur-xl">
-            <nav className="page-wrap flex min-h-15 items-center gap-3">
-                <Link
-                    to="/"
-                    className="flex items-center gap-3 no-underline text-(--sea-ink)"
+        <>
+            <header className="metrotech-mobile-bar">
+                <Link to="/" className="metrotech-mobile-brand" onClick={() => setMobileOpen(false)}>
+                    <img src="/assets/metrotech-logo.webp" width={300} height={43} alt="Metrotech" />
+                </Link>
+                <button
+                    type="button"
+                    className="metrotech-mobile-menu"
+                    aria-expanded={mobileOpen}
+                    aria-controls="metrotech-sidebar"
+                    aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+                    onClick={() => setMobileOpen((open) => !open)}
                 >
-                    <div className="w-8 h-8 rounded-lg bg-(--sea-ink) text-white dark:bg-(--sea-teal) dark:text-zinc-950 flex items-center justify-center shadow-sm">
-                        <ShieldCheck size={16} />
-                    </div>
-                    <div className="hidden sm:flex flex-col leading-none">
-                        <span className="text-sm font-extrabold tracking-tight">
-                            Metrotech DCIM
-                        </span>
-                        <span className="text-[9px] uppercase tracking-[0.16em] text-(--sea-ink-soft) mt-1">
-                            Infrastructure Portal
-                        </span>
-                    </div>
+                    {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+                </button>
+            </header>
+            {mobileOpen && (
+                <button
+                    type="button"
+                    className="metrotech-sidebar-scrim"
+                    aria-label="Close navigation"
+                    onClick={() => setMobileOpen(false)}
+                />
+            )}
+            <aside id="metrotech-sidebar" className={['metrotech-sidebar', mobileOpen ? 'is-open' : ''].join(' ')}>
+                <Link to="/" className="metrotech-brand" onClick={() => setMobileOpen(false)}>
+                    <img src="/assets/metrotech-logo.webp" width={300} height={43} alt="Metrotech" />
+                    <span className="metrotech-brand-label">DCIM · Infrastructure Management</span>
                 </Link>
 
-                <div className="h-6 w-px bg-(--line) hidden sm:block" />
-
-                <div className="flex items-center gap-1">
-                    <Link
-                        to="/"
-                        className="nav-link text-xs font-bold"
-                        activeOptions={{ exact: true }}
-                        activeProps={{ className: 'nav-link is-active text-xs font-bold' }}
-                    >
-                        Datacenters
-                    </Link>
-                    <Link
-                        to="/about"
-                        className="nav-link text-xs font-bold"
-                        activeProps={{ className: 'nav-link is-active text-xs font-bold' }}
-                    >
-                        About
-                    </Link>
-                </div>
-
-                <div className="ml-auto flex items-center gap-2">
-                    <ThemeToggle />
+                <p className="metrotech-nav-label">Workspace</p>
+                <nav className="metrotech-sidebar-nav" aria-label="Main navigation">
                     {session ? (
-                        <div className="hidden md:flex items-center gap-2 pl-2 border-l border-(--line)">
-                            <div className="text-right leading-tight">
-                                <div className="text-xs font-bold text-(--sea-ink)">
-                                    {session.user.fullName}
-                                </div>
-                                <div className="text-[9px] text-(--sea-ink-soft)">
-                                    {session.user.email}
-                                </div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={handleLogout}
-                                className="w-8 h-8 rounded-lg border border-(--line) bg-(--surface) text-(--sea-ink-soft) hover:text-red-500 hover:border-red-500/30 flex items-center justify-center"
-                                title="Log out"
-                                aria-label="Log out"
-                            >
-                                <LogOut size={14} />
-                            </button>
-                        </div>
+                        <Link
+                            to="/"
+                            activeOptions={{ exact: true }}
+                            className="metrotech-sidebar-link"
+                            activeProps={{ className: 'metrotech-sidebar-link is-active' }}
+                            onClick={() => setMobileOpen(false)}
+                        >
+                            <LayoutDashboard size={17} aria-hidden="true" />
+                            Datacenters
+                        </Link>
                     ) : (
                         <Link
                             to="/login"
-                            className="nav-link text-xs font-bold"
-                            activeProps={{
-                                className: 'nav-link is-active text-xs font-bold',
-                            }}
+                            className="metrotech-sidebar-link"
+                            activeProps={{ className: 'metrotech-sidebar-link is-active' }}
+                            onClick={() => setMobileOpen(false)}
                         >
-                            Log In
+                            <LogIn size={17} aria-hidden="true" />
+                            Sign In
                         </Link>
                     )}
+                    <Link
+                        to="/about"
+                        className="metrotech-sidebar-link"
+                        activeProps={{ className: 'metrotech-sidebar-link is-active' }}
+                        onClick={() => setMobileOpen(false)}
+                    >
+                        <Info size={17} aria-hidden="true" />
+                        About
+                    </Link>
+                </nav>
+
+                <div className="metrotech-sidebar-footer">
+                    <ThemeToggle />
+                    {session && (
+                        <div className="metrotech-profile">
+                            <span className="metrotech-avatar" aria-hidden="true">
+                                {session.user.fullName.trim().slice(0, 1).toUpperCase() || 'M'}
+                            </span>
+                            <div className="metrotech-profile-info">
+                                <p className="metrotech-profile-name">{session.user.fullName}</p>
+                                <p className="metrotech-profile-email">{session.user.email}</p>
+                            </div>
+                            <button
+                                type="button"
+                                className="metrotech-logout"
+                                onClick={handleLogout}
+                                title="Log out"
+                                aria-label="Log out"
+                            >
+                                <LogOut size={16} />
+                            </button>
+                        </div>
+                    )}
                 </div>
-            </nav>
-        </header>
+            </aside>
+        </>
     );
 }

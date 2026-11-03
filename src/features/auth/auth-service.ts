@@ -2,7 +2,9 @@ import { createServerFn } from '@tanstack/react-start';
 import { getCookie, setCookie } from '@tanstack/react-start/server';
 import { getDb } from './sqlite';
 
-const SESSION_COOKIE_NAME = 'session_token';
+// Preview deployments on the same hostname need their own cookie to avoid
+// replacing the session of the main DCIM instance on another port.
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'session_token';
 const SESSION_EXPIRY_DAYS = 7;
 const SESSION_EXPIRY_MS = SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 
