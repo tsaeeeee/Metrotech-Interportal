@@ -3,6 +3,12 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 10px;
+  --radius-2xl: 10px;
+  --radius-3xl: 10px;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -497,3 +503,7 @@ button, .island-shell, .feature-card, .ops-panel, a {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* Metrotech unified control/card/modal radius without changing layout geometry. */
+:root { --metrotech-component-radius: 10px; }
+:is(.island-shell,.feature-card,.ops-panel,.ops-toolbar,.asset-control,.auth-submit) { border-radius: var(--metrotech-component-radius); }

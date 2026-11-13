@@ -11,7 +11,7 @@ import { getDb } from '../auth/sqlite';
 
 async function requireAuth() {
     const session = await getSession();
-    if (!session) throw new Error('Unauthorized');
+    if (!session || session.user.mustChangePassword) throw new Error('Unauthorized');
     return session;
 }
 
@@ -212,6 +212,7 @@ function saveConnection(connection: Connection) {
 
 export const getFloors = createServerFn({ method: 'GET' }).handler(
     async (): Promise<Floor[]> => {
+        await requireAuth();
         const db = getDb();
 
         const datacenters = db
@@ -239,6 +240,7 @@ export const getFloors = createServerFn({ method: 'GET' }).handler(
 export const getFloorRooms = createServerFn({ method: 'GET' })
     .inputValidator((data: string) => data)
     .handler(async (ctx): Promise<Room[]> => {
+        await requireAuth();
         const db = getDb();
         const rows = db
             .prepare(
@@ -259,6 +261,7 @@ export const getFloorRooms = createServerFn({ method: 'GET' })
 export const getRoomRacks = createServerFn({ method: 'GET' })
     .inputValidator((data: string) => data)
     .handler(async (ctx): Promise<Rack[]> => {
+        await requireAuth();
         const db = getDb();
         const rows = db
             .prepare(
@@ -283,6 +286,7 @@ export const getRoomRacks = createServerFn({ method: 'GET' })
 export const getFullRackContext = createServerFn({ method: 'GET' })
     .inputValidator((data: string) => data)
     .handler(async (ctx) => {
+        await requireAuth();
         const db = getDb();
         const rackRow = db
             .prepare(
@@ -341,6 +345,7 @@ export const getFullRackContext = createServerFn({ method: 'GET' })
 export const getFullRoomContext = createServerFn({ method: 'GET' })
     .inputValidator((data: string) => data)
     .handler(async (ctx) => {
+        await requireAuth();
         const db = getDb();
         const roomRow = db
             .prepare(
@@ -637,6 +642,7 @@ export const disconnectPorts = createServerFn({ method: 'POST' })
 
 export const getInventory = createServerFn({ method: 'GET' }).handler(
     async (): Promise<Device[]> => {
+        await requireAuth();
         const db = getDb();
         const rows = db
             .prepare('SELECT payload FROM inventory ORDER BY id')
@@ -840,6 +846,7 @@ export const createRack = createServerFn({ method: 'POST' })
 
 export const getInfrastructureSummary = createServerFn({ method: 'GET' }).handler(
     async (): Promise<{ floors: Floor[]; rooms: Room[]; racks: Rack[] }> => {
+        await requireAuth();
         const db = getDb();
 
         const datacenters = db

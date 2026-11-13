@@ -1,6 +1,6 @@
 import { Link, useRouteContext, useRouter } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
-import { Info, LayoutDashboard, LogIn, LogOut, Menu, X } from 'lucide-react';
+import { Info, LayoutDashboard, LogIn, LogOut, Menu, UsersRound, X } from 'lucide-react';
 import { useState } from 'react';
 import { logout } from '../features/auth/auth-service';
 import ThemeToggle from './ThemeToggle';
@@ -71,6 +71,17 @@ export default function Header() {
                         >
                             <LogIn size={17} aria-hidden="true" />
                             Sign In
+                        </Link>
+                    )}
+                    {session?.user.role === 'admin' && (
+                        <Link
+                            to="/admin/users"
+                            className="metrotech-sidebar-link"
+                            activeProps={{ className: 'metrotech-sidebar-link is-active' }}
+                            onClick={() => setMobileOpen(false)}
+                        >
+                            <UsersRound size={17} aria-hidden="true" />
+                            User Management
                         </Link>
                     )}
                     <Link

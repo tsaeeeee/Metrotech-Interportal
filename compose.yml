@@ -9,9 +9,9 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
-      SESSION_COOKIE_SECURE: "false"
+      SESSION_COOKIE_SECURE: "true"
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./data:/app/data
     healthcheck:
