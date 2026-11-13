@@ -1,170 +1,121 @@
 import { createServerFn } from '@tanstack/react-start';
 import { getCookie, setCookie } from '@tanstack/react-start/server';
-import { getDb } from './sqlite';
+import { createHash, randomBytes } from 'node:crypto';
+import { getAuthDb } from './auth-db';
+import { hashPassword, verifyPassword } from './passwords';
 
-// Preview deployments on the same hostname need their own cookie to avoid
-// replacing the session of the main DCIM instance on another port.
-const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'session_token';
+const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'metrotech_dcim_v2_session';
 const SESSION_EXPIRY_DAYS = 7;
-const SESSION_EXPIRY_MS = SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+const SESSION_EXPIRY_MS = SESSION_EXPIRY_DAYS * 86400000;
+const isSecureCookieEnabled = () => process.env.SESSION_COOKIE_SECURE !== 'false';
+const digest = (token: string) => createHash('sha256').update(token).digest('hex');
 
-function isSecureCookieEnabled(): boolean {
-    return process.env.SESSION_COOKIE_SECURE === 'true';
+export interface SessionUser {
+    id: string;
+    username: string;
+    fullName: string;
+    email: string;
+    role: 'admin' | 'editor';
+    mustChangePassword: boolean;
+}
+export interface CurrentSession { user: SessionUser; }
+
+function findSession(): CurrentSession | null {
+    const rawToken = getCookie(SESSION_COOKIE_NAME);
+    if (!rawToken || !/^[a-f0-9]{64}$/.test(rawToken)) return null;
+    const db = getAuthDb();
+    const session = db.prepare(`
+        SELECT s.expires_at, u.id, u.username, u.full_name, u.email, u.role,
+               u.must_change_password, u.is_active
+        FROM sessions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.token_hash = ?
+    `).get(digest(rawToken)) as {
+        expires_at: number; id: string; username: string; full_name: string;
+        email: string | null; role: 'admin' | 'editor';
+        must_change_password: number; is_active: number;
+    } | undefined;
+    if (!session) return null;
+    if (session.expires_at <= Date.now() || session.is_active !== 1) {
+        db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(digest(rawToken));
+        return null;
+    }
+    return {
+        user: {
+            id: session.id,
+            username: session.username,
+            fullName: session.full_name,
+            email: session.email ?? '',
+            role: session.role,
+            mustChangePassword: session.must_change_password === 1,
+        },
+    };
 }
 
-async function hashPassword(password: string): Promise<string> {
-    const crypto = await import('node:crypto');
-    // Basic pbkdf2 implementation with a static salt for simplicity
-    // In a real app, you'd use a unique random salt per user
-    const salt = 'metrotech-salt';
-    return crypto
-        .pbkdf2Sync(password, salt, 10000, 64, 'sha512')
-        .toString('hex');
-}
-
-export const signUp = createServerFn({ method: 'POST' })
-    .inputValidator(
-        (data: { fullName: string; email: string; password: string }) => data,
-    )
-    .handler(async (ctx) => {
-        const { fullName, email, password } = ctx.data;
-        const db = getDb();
-
-        const existingUser = db
-            .prepare('SELECT id FROM users WHERE email = ?')
-            .get(email);
-        if (existingUser) {
-            throw new Error('An account with this email already exists');
-        }
-
-        const crypto = await import('node:crypto');
-        const userId = `usr-${crypto.randomUUID()}`;
-        const passwordHash = await hashPassword(password);
-        const now = Date.now();
-
-        // Insert user
-        db.prepare(
-            'INSERT INTO users (id, full_name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)',
-        ).run(userId, fullName, email, passwordHash, now);
-
-        // Create session
-        const token = crypto.randomBytes(32).toString('hex');
-        const expiresAt = now + SESSION_EXPIRY_MS;
-
-        db.prepare(
-            'INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)',
-        ).run(token, userId, expiresAt);
-
-        // Set cookie
-        setCookie(SESSION_COOKIE_NAME, token, {
-            httpOnly: true,
-            secure: isSecureCookieEnabled(),
-            sameSite: 'lax',
-            path: '/',
-            maxAge: SESSION_EXPIRY_DAYS * 24 * 60 * 60,
-        });
-
-        return { success: true };
-    });
+export const getSession = createServerFn({ method: 'GET' })
+    .handler(async (): Promise<CurrentSession | null> => findSession());
 
 export const login = createServerFn({ method: 'POST' })
-    .inputValidator((data: { email: string; password: string }) => data)
+    .inputValidator((data: { username: string; password: string }) => data)
     .handler(async (ctx) => {
-        const { email, password } = ctx.data;
-        const db = getDb();
-
-        const user = db
-            .prepare('SELECT * FROM users WHERE email = ?')
-            .get(email) as { id: string; password_hash: string } | undefined;
-        if (!user) {
-            throw new Error('Invalid email or password');
+        const { username, password } = ctx.data;
+        if (!username || !password || username.length > 80 || password.length > 256) {
+            throw new Error('Invalid username or password');
         }
-
-        const passwordHash = await hashPassword(password);
-        if (user.password_hash !== passwordHash) {
-            throw new Error('Invalid email or password');
+        const db = getAuthDb();
+        const user = db.prepare(`
+            SELECT id, password_hash, is_active, must_change_password
+            FROM users WHERE username = ? COLLATE NOCASE
+        `).get(username.trim()) as {
+            id: string; password_hash: string; is_active: number;
+            must_change_password: number;
+        } | undefined;
+        if (!user || user.is_active !== 1 || !verifyPassword(password, user.password_hash)) {
+            throw new Error('Invalid username or password');
         }
-
-        const crypto = await import('node:crypto');
-        const token = crypto.randomBytes(32).toString('hex');
-        const expiresAt = Date.now() + SESSION_EXPIRY_MS;
-
-        db.prepare(
-            'INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)',
-        ).run(token, user.id, expiresAt);
-
+        const token = randomBytes(32).toString('hex');
+        const now = Date.now();
+        db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now);
+        db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
+            .run(digest(token), user.id, now + SESSION_EXPIRY_MS, now);
         setCookie(SESSION_COOKIE_NAME, token, {
-            httpOnly: true,
-            secure: isSecureCookieEnabled(),
-            sameSite: 'lax',
-            path: '/',
-            maxAge: SESSION_EXPIRY_DAYS * 24 * 60 * 60,
+            httpOnly: true, secure: isSecureCookieEnabled(), sameSite: 'lax',
+            path: '/', maxAge: SESSION_EXPIRY_MS / 1000,
         });
-
-        return { success: true };
+        return { success: true, mustChangePassword: user.must_change_password === 1 };
     });
 
 export const logout = createServerFn({ method: 'POST' }).handler(async () => {
     const token = getCookie(SESSION_COOKIE_NAME);
-    if (token) {
-        const db = getDb();
-        db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
-    }
-
-    // Clear cookie
+    if (token) getAuthDb().prepare('DELETE FROM sessions WHERE token_hash = ?').run(digest(token));
     setCookie(SESSION_COOKIE_NAME, '', {
-        httpOnly: true,
-        secure: isSecureCookieEnabled(),
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 0,
+        httpOnly: true, secure: isSecureCookieEnabled(), sameSite: 'lax',
+        path: '/', maxAge: 0,
     });
-
     return { success: true };
 });
 
-export const getSession = createServerFn({ method: 'GET' }).handler(
-    async () => {
-        const token = getCookie(SESSION_COOKIE_NAME);
-        if (!token) {
-            return null;
+export const changePassword = createServerFn({ method: 'POST' })
+    .inputValidator((data: { currentPassword: string; newPassword: string }) => data)
+    .handler(async ({ data }) => {
+        const session = findSession();
+        if (!session) throw new Error('Unauthorized');
+        const db = getAuthDb();
+        const row = db.prepare('SELECT password_hash FROM users WHERE id=?').get(session.user.id) as
+            { password_hash: string } | undefined;
+        if (!row || !verifyPassword(data.currentPassword, row.password_hash)) {
+            throw new Error('Current password is incorrect');
         }
-
-        const db = getDb();
-
-        // Get session with user info
-        const session = db
-            .prepare(`
-        SELECT s.expires_at, u.id, u.full_name, u.email 
-        FROM sessions s 
-        JOIN users u ON s.user_id = u.id 
-        WHERE s.token = ?
-    `)
-            .get(token) as
-            | {
-                  expires_at: number;
-                  id: string;
-                  full_name: string;
-                  email: string;
-              }
-            | undefined;
-
-        if (!session) {
-            return null;
+        if (data.newPassword === data.currentPassword) {
+            throw new Error('New password must be different');
         }
-
-        // Check expiry
-        if (session.expires_at < Date.now()) {
-            db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
-            return null;
-        }
-
-        return {
-            user: {
-                id: session.id,
-                fullName: session.full_name,
-                email: session.email,
-            },
-        };
-    },
-);
+        const passwordHash = hashPassword(data.newPassword);
+        db.transaction(() => {
+            db.prepare('UPDATE users SET password_hash=?, must_change_password=0, updated_at=? WHERE id=?')
+                .run(passwordHash, Date.now(), session.user.id);
+            const token = getCookie(SESSION_COOKIE_NAME);
+            if (token) db.prepare('DELETE FROM sessions WHERE user_id=? AND token_hash <> ?')
+                .run(session.user.id, digest(token));
+        })();
+        return { success: true };
+    });
