@@ -1,7 +1,7 @@
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router';
 import { useServerFn } from '@tanstack/react-start';
 import { useState } from 'react';
-import { createUser, listUsers, type ManagedUser } from '../../features/admin/user-service';
+import { createUser, listUsers, type ManagedUser } from '../../../features/admin/user-service';
 
 export const Route = createFileRoute('/_protected/admin/users')({
     beforeLoad: ({ context }) => {
