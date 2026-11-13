@@ -11,7 +11,7 @@ import { getDb } from '../auth/sqlite';
 
 async function requireAuth() {
     const session = await getSession();
-    if (!session) throw new Error('Unauthorized');
+    if (!session || session.user.mustChangePassword) throw new Error('Unauthorized');
     return session;
 }
 

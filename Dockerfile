@@ -28,6 +28,7 @@ ENV PORT=3000
 COPY --from=build /app/.output ./.output
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/scripts ./scripts
 
 RUN mkdir -p /app/data
 

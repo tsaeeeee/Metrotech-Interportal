@@ -53,10 +53,10 @@ function toFloor(row: DbFloor): PlannerFloor {
 
 async function ownedDc(dcId: string) {
     const session = await getSession();
-    if (!session) throw new Error('Unauthorized');
+    if (!session || session.user.mustChangePassword) throw new Error('Unauthorized');
     const dc = getDb().prepare(
-        'SELECT id, name, code, location FROM datacenters WHERE id = ? AND owner_id = ?',
-    ).get(dcId, session.user.id) as
+        'SELECT id, name, code, location FROM datacenters WHERE id = ?',
+    ).get(dcId) as
         | { id: string; name: string; code: string; location: string }
         | undefined;
     if (!dc) throw new Error('Datacenter not found');
@@ -65,12 +65,10 @@ async function ownedDc(dcId: string) {
 
 async function ownedFloor(floorId: string) {
     const session = await getSession();
-    if (!session) throw new Error('Unauthorized');
+    if (!session || session.user.mustChangePassword) throw new Error('Unauthorized');
     const row = getDb().prepare(
-        `SELECT f.* FROM dc_planner_floors f
-         JOIN datacenters d ON d.id = f.datacenter_id
-         WHERE f.id = ? AND d.owner_id = ?`,
-    ).get(floorId, session.user.id) as DbFloor | undefined;
+        'SELECT * FROM dc_planner_floors WHERE id = ?',
+    ).get(floorId) as DbFloor | undefined;
     if (!row) throw new Error('Floor not found');
     return row;
 }
