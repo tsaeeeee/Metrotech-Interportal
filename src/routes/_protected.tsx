@@ -5,6 +5,9 @@ export const Route = createFileRoute('/_protected')({
         if (!context.session) {
             throw redirect({ to: '/login' });
         }
+        if (context.session.user.mustChangePassword) {
+            throw redirect({ to: '/change-password' });
+        }
     },
     component: () => <Outlet />,
 });

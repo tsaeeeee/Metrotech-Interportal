@@ -1,6 +1,5 @@
 import {
     createFileRoute,
-    Link,
     redirect,
     useRouter,
 } from '@tanstack/react-router';
@@ -29,16 +28,16 @@ function LoginPage() {
         setLoading(true);
 
         const form = e.currentTarget;
-        const email = (form.elements.namedItem('email') as HTMLInputElement)
+        const username = (form.elements.namedItem('username') as HTMLInputElement)
             .value;
         const password = (
             form.elements.namedItem('password') as HTMLInputElement
         ).value;
 
         try {
-            await loginFn({ data: { email, password } });
+            const result = await loginFn({ data: { username, password } });
             await router.invalidate();
-            router.navigate({ to: '/' });
+            await router.navigate({ to: result.mustChangePassword ? '/change-password' : '/' });
         } catch (err) {
             setError(
                 err instanceof Error ? err.message : 'Something went wrong',
@@ -67,16 +66,16 @@ function LoginPage() {
                         className="flex flex-col gap-5"
                     >
                         <div className="flex flex-col gap-1.5">
-                            <label htmlFor="email" className="island-kicker">
-                                Email
+                            <label htmlFor="username" className="island-kicker">
+                                Username
                             </label>
                             <input
-                                id="email"
-                                name="email"
-                                type="email"
+                                id="username"
+                                name="username"
+                                type="text"
                                 required
-                                autoComplete="email"
-                                placeholder="you@company.com"
+                                autoComplete="username"
+                                placeholder="Administrator"
                                 className="asset-control"
                             />
                         </div>
@@ -111,16 +110,6 @@ function LoginPage() {
                             {loading ? 'Signing in…' : 'Sign In'}
                         </button>
                     </form>
-
-                    <p className="text-center text-sm text-(--sea-ink-soft) mt-6">
-                        Don't have an account?{' '}
-                        <Link
-                            to="/signup"
-                            className="font-bold text-(--lagoon-deep) hover:underline"
-                        >
-                            Sign up
-                        </Link>
-                    </p>
                 </div>
             </div>
         </main>

@@ -12,7 +12,7 @@ import appCss from '../styles.css?url';
 const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark')?stored:'dark';var resolved=mode==='auto'? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);if(mode==='auto'){root.removeAttribute('data-theme')}else{root.setAttribute('data-theme',mode)}root.style.colorScheme=resolved;}catch(e){}})();`;
 
 interface RouterContext {
-    session: { user: { id: string; fullName: string; email: string } } | null;
+    session: { user: { id: string; username: string; fullName: string; email: string; role: 'admin' | 'editor'; mustChangePassword: boolean } } | null;
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
